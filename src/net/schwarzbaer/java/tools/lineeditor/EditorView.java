@@ -146,8 +146,9 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 //	}
 	
 	void forEachGuideLines(BiConsumer<GuideLine.Type,Double> action) {
-		for (GuideLine gl:guideLines)
-			action.accept(gl.type,gl.pos);
+		if (guideLines!=null)
+			for (GuideLine gl:guideLines)
+				action.accept(gl.type,gl.pos);
 	}
 
 	@Override public void mouseClicked (MouseEvent e) {
@@ -170,7 +171,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	@Override public void mouseReleased(MouseEvent e) { if (formEditing==null || !formEditing.onReleased(e)) super.mouseReleased(e); }
 	@Override public void mouseDragged (MouseEvent e) { if (formEditing==null || !formEditing.onDragged (e)) super.mouseDragged (e); }
 	
-	private void deselect() {
+	void deselect() {
 		if (formEditing!=null) formEditing.stopEditing();
 		formEditing=null;
 		context.setValuePanel(null);

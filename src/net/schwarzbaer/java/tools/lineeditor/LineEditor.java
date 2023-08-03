@@ -38,11 +38,23 @@ import net.schwarzbaer.java.tools.lineeditor.LineForm.FormType;
 
 public class LineEditor
 {
+	public record GuideLinesChangedEvent(GuideLinesChangedEvent.Type type, String caller)
+	{
+		public enum Type { Added, Removed, Changed }
+	}
+	
+	public record FormsChangedEvent(FormsChangedEvent.Type type, String caller)
+	{
+		public enum Type { Added, Removed, Changed }
+	}
+	
 	public interface Context
 	{
 		void switchOptionsPanel(JComponent panel);
 		boolean canCreateNewForm();
 		void replaceForms(Form[] forms);
+		void guideLinesChanged(GuideLinesChangedEvent event);
+		void formsChanged(FormsChangedEvent event);
 	}
 	
 	private LineForm<?>[] lineforms = null;
@@ -63,12 +75,19 @@ public class LineEditor
 			@Override public void changeSelectedForm        (LineForm<?> form       ) { editorView.setSelectedForm    (form); }
 			@Override public void changeHighlightedGuideLine(GuideLine guideLine    ) { editorView.setHighlightedGuideLine(guideLine); }
 			
+			
+			@Override
+			public void guideLineChanged() {
+				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Changed, "GeneralOptionPanel.Context.guideLineChanged"));
+			}
+			
 			@Override
 			public void addGuideLine(GuideLine guideLine) {
 				if (guideLine==null) return;
 				guideLinesStorage.guideLines.add(guideLine);
 				editorView        .setGuideLines(guideLinesStorage.guideLines);
 				generalOptionPanel.setGuideLines(guideLinesStorage.guideLines);
+				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Added, "GeneralOptionPanel.Context.addGuideLine"));
 			}
 
 			@Override
@@ -77,6 +96,7 @@ public class LineEditor
 				guideLinesStorage.guideLines.remove(index);
 				editorView        .setGuideLines(guideLinesStorage.guideLines);
 				generalOptionPanel.setGuideLines(guideLinesStorage.guideLines);
+				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeGuideLine"));
 			}
 
 			@Override
@@ -85,6 +105,7 @@ public class LineEditor
 				LineForm<?>[] newArr = lineforms==null ? new LineForm[1] : Arrays.copyOf(lineforms, lineforms.length+1);
 				newArr[newArr.length-1] = form;
 				setNewArray(newArr);
+				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForm"));
 			}
 			@Override
 			public void addForms(Vector<LineForm<?>> forms) {
@@ -94,6 +115,7 @@ public class LineEditor
 				for (int i=0; i<forms.size(); i++)
 					newArr[offset+i] = forms.get(i);
 				setNewArray(newArr);
+				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForms"));
 			}
 			@Override
 			public void removeForms(List<LineForm<?>> forms) {
@@ -102,6 +124,7 @@ public class LineEditor
 				for (LineForm<?> rf:forms) vec.remove(rf);
 				LineForm<?>[] newArr = vec.toArray(new LineForm<?>[vec.size()]);
 				setNewArray(newArr);
+				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeForms"));
 			}
 
 			private void setNewArray(LineForm<?>[] newArr) {
@@ -122,6 +145,8 @@ public class LineEditor
 		generalOptionPanel.setPreferredSize(new Dimension(200, 200));
 		
 		editorView = new EditorView(features, new EditorView.Context() {
+			boolean lastPanelWasFormPanel = false;
+			
 			@Override public void updateHighlightedForms(HashSet<LineForm<?>> forms) {
 				if (lineforms==null)
 					generalOptionPanel.setSelectedForms(new int[0]);
@@ -135,7 +160,15 @@ public class LineEditor
 				}
 			}
 			@Override public void setValuePanel(JPanel panel) {
-				context.switchOptionsPanel(panel!=null ? panel : generalOptionPanel);
+				if (panel == null)
+				{
+					context.switchOptionsPanel(generalOptionPanel);
+					if (lastPanelWasFormPanel)
+						context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Changed, "EditorView.Context.setValuePanel"));
+				}
+				else
+					context.switchOptionsPanel(createReturnWrapperPanel(panel, ()->editorView.deselect()));
+				lastPanelWasFormPanel = panel!=null;
 			}
 			@Override public void showsContextMenu(int x, int y) {
 				editorViewContextMenu.prepareToShow();
@@ -159,6 +192,14 @@ public class LineEditor
 	public void init()
 	{
 		editorView.reset();
+	}
+
+	private static JPanel createReturnWrapperPanel(JPanel panel, Runnable returnAction)
+	{
+		JPanel wrapper = new JPanel(new BorderLayout());
+		wrapper.add(panel, BorderLayout.CENTER);
+		wrapper.add(createButton("return", e->returnAction.run()), BorderLayout.SOUTH);
+		return wrapper;
 	}
 
 	static <A, C extends JComponent> C addToDisabler(Disabler<A> disabler, A disableTag, C component) {
@@ -205,8 +246,9 @@ public class LineEditor
 	public void setGuideLines(GuideLinesStorage guideLinesStorage)
 	{
 		this.guideLinesStorage = guideLinesStorage;
-		editorView        .setGuideLines(guideLinesStorage.guideLines);
-		generalOptionPanel.setGuideLines(guideLinesStorage.guideLines);
+		Vector<GuideLine> guideLines = guideLinesStorage==null ? null : guideLinesStorage.guideLines;
+		editorView        .setGuideLines(guideLines);
+		generalOptionPanel.setGuideLines(guideLines);
 	}
 
 	public static Form.Factory createFormFactory()
@@ -329,6 +371,7 @@ public class LineEditor
 			void repaintView();
 			Rectangle2D.Float getViewRectangle();
 			boolean canCreateNewForm();
+			void guideLineChanged();
 		}
 	
 		enum FormsPanelButtons { New,Edit,Remove,Copy,Paste,Mirror,Translate }
@@ -529,6 +572,7 @@ public class LineEditor
 				
 				selected.pos = pos;
 				context.repaintView();
+				context.guideLineChanged();
 				guideLineList.repaint();
 			}
 			
@@ -572,7 +616,7 @@ public class LineEditor
 		private final JCheckBoxMenuItem miStickToFormPoints;
 		private final EditorView editorView;
 		private final EditorViewFeature[] features;
-
+	
 		public EditorViewContextMenu(EditorView editorView, EditorViewFeature[] features) {
 			this.editorView = editorView;
 			this.features = features;
@@ -581,7 +625,7 @@ public class LineEditor
 			for (EditorViewFeature feature : this.features)
 				feature.addToEditorViewContextMenu(this);
 		}
-
+	
 		public void prepareToShow() {
 			miStickToGuideLines.setSelected(editorView.isStickToGuideLines());
 			miStickToFormPoints.setSelected(editorView.isStickToFormPoints());
