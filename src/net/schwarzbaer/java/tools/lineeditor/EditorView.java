@@ -20,6 +20,7 @@ import java.util.function.BiConsumer;
 import javax.swing.JPanel;
 
 import net.schwarzbaer.java.lib.gui.ZoomableCanvas;
+import net.schwarzbaer.java.lib.image.linegeometry.Form;
 import net.schwarzbaer.java.lib.image.linegeometry.Math2;
 import net.schwarzbaer.java.tools.lineeditor.EditorView.GuideLine.Type;
 
@@ -283,6 +284,27 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 			}
 		}
 		
+	}
+	
+	static void drawForm(Graphics2D g2, Form form, ZoomableCanvas.ViewState viewState)
+	{
+		if (form instanceof LineForm<?>)
+		{
+			LineForm<?> lineForm = (LineForm<?>) form;
+			lineForm.drawLines(g2,viewState);
+		}
+	}
+	
+	static void drawForms(Graphics2D g2, Form[] forms, ZoomableCanvas.ViewState viewState)
+	{
+		for (Form form : forms)
+			drawForm(g2, form, viewState);
+	}
+	
+	static void drawForms(Graphics2D g2, Iterable<Form> forms, ZoomableCanvas.ViewState viewState)
+	{
+		for (Form form : forms)
+			drawForm(g2, form, viewState);
 	}
 	
 	static void drawPoint(Graphics2D g2, int x, int y, boolean highlighted) {

@@ -3,6 +3,7 @@ package net.schwarzbaer.java.tools.lineeditor;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
@@ -32,6 +33,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.event.ListDataListener;
 
 import net.schwarzbaer.java.lib.gui.Disabler;
+import net.schwarzbaer.java.lib.gui.ZoomableCanvas;
 import net.schwarzbaer.java.lib.image.linegeometry.Form;
 import net.schwarzbaer.java.tools.lineeditor.EditorView.GuideLine;
 import net.schwarzbaer.java.tools.lineeditor.LineForm.FormType;
@@ -249,6 +251,14 @@ public class LineEditor
 		Vector<GuideLine> guideLines = guideLinesStorage==null ? null : guideLinesStorage.guideLines;
 		editorView        .setGuideLines(guideLines);
 		generalOptionPanel.setGuideLines(guideLines);
+	}
+	public static void drawForms(Graphics2D g2, Form[] forms, ZoomableCanvas.ViewState viewState)
+	{
+		EditorView.drawForms(g2, forms, viewState);
+	}
+	public static void drawForms(Graphics2D g2, Iterable<Form> forms, ZoomableCanvas.ViewState viewState)
+	{
+		EditorView.drawForms(g2, forms, viewState);
 	}
 
 	public static Form.Factory createFormFactory()
