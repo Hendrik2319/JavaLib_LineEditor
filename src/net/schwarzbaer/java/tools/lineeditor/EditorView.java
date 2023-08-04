@@ -48,8 +48,10 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	private boolean stickToGuideLines = true;
 	private boolean stickToFormPoints = true;
 	private final EditorViewFeature[] features;
+	private final Rectangle2D.Double initialViewRect;
 	
-	EditorView(EditorViewFeature[] features, Context context) {
+	EditorView(Rectangle2D.Double initialViewRect, EditorViewFeature[] features, Context context) {
+		this.initialViewRect = initialViewRect;
 		this.features = features;
 		this.context = context;
 		Debug.Assert(this.context!=null);
@@ -320,12 +322,12 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 
 	@Override
 	protected ViewState createViewState() {
-		return new ViewState(this);
+		return new ViewState();
 	}
 	class ViewState extends ZoomableCanvas.ViewState {
 		
-		private ViewState(ZoomableCanvas<?> canvas) {
-			super(canvas,0.1f);
+		private ViewState() {
+			super(EditorView.this,0.1f);
 			setPlainMapSurface();
 			setVertAxisDownPositive(true);
 			setHorizAxisRightPositive(true);
@@ -334,10 +336,36 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 
 		@Override
 		protected void determineMinMax(MapLatLong min, MapLatLong max) {
-			min.latitude_y  =  -50.0;
-			min.longitude_x = -100.0;
-			max.latitude_y  =  150.0;
-			max.longitude_x =  300.0;
+			Rectangle2D.Double bb = null;
+			if (forms!=null)
+			{
+				for (LineForm<?> form : forms)
+					if (bb != null)
+						bb.add(form.computeBoundingBox());
+					else
+					{
+						bb = new Rectangle2D.Double();
+						bb.setRect(form.computeBoundingBox());
+					}
+				if (bb!=null)
+				{
+					double border = Math.max(bb.width, bb.height)/6;
+					bb.setRect(
+						bb.x-border,
+						bb.y-border,
+						bb.width +2*border,
+						bb.height+2*border
+					);
+				}
+			}
+			
+			if (bb == null)
+				bb = initialViewRect;
+			
+			min.latitude_y  = bb.y;
+			min.longitude_x = bb.x;
+			max.latitude_y  = bb.y+bb.height;
+			max.longitude_x = bb.x+bb.width;
 		}
 	}
 	

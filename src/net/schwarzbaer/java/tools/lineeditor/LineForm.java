@@ -13,7 +13,7 @@ import net.schwarzbaer.java.lib.gui.ZoomableCanvas.ViewState;
 import net.schwarzbaer.java.lib.image.linegeometry.Form;
 import net.schwarzbaer.java.lib.image.linegeometry.Math2;
 
-interface LineForm<HighlightPointType> extends LineFormEditing.EditableForm<HighlightPointType>, EditorViewFeature.FeatureLineForm {
+interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableForm<HighlightPointType>, EditorViewFeature.FeatureLineForm {
 
 	static final Stroke STROKE_HIGHLIGHTED = new BasicStroke(1.5f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND);
 	static final Stroke STROKE_STANDARD    = new BasicStroke(1f);
@@ -52,7 +52,7 @@ interface LineForm<HighlightPointType> extends LineFormEditing.EditableForm<High
 	@Override void drawLines (Graphics2D g2, ViewState viewState);
 	@Override void drawPoints(Graphics2D g2, ViewState viewState);
 	Double getDistance(double x, double y, double maxDist);
-	LineForm<HighlightPointType> setValues(double[] values);
+	@Override LineForm<HighlightPointType> setValues(double[] values);
 	void mirror(MirrorDirection dir, double pos);
 	void translate(double x, double y);
 	void forEachPoint(BiConsumer<Double,Double> action);

@@ -66,7 +66,7 @@ public class LineEditor
 	private final EditorViewContextMenu editorViewContextMenu;
 	private GuideLinesStorage guideLinesStorage;
 
-	public LineEditor(Context context, EditorViewFeature... features) {
+	public LineEditor(Rectangle2D.Double initialViewRect, Context context, EditorViewFeature... features) {
 		guideLinesStorage = new GuideLinesStorage();
 		
 		generalOptionPanel = new GeneralOptionPanel(new GeneralOptionPanel.Context() {
@@ -146,7 +146,7 @@ public class LineEditor
 		});
 		generalOptionPanel.setPreferredSize(new Dimension(200, 200));
 		
-		editorView = new EditorView(features, new EditorView.Context() {
+		editorView = new EditorView(initialViewRect, features, new EditorView.Context() {
 			boolean lastPanelWasFormPanel = false;
 			
 			@Override public void updateHighlightedForms(HashSet<LineForm<?>> forms) {
@@ -192,6 +192,11 @@ public class LineEditor
 	}
 
 	public void init()
+	{
+		editorView.reset();
+	}
+
+	public void fitViewToContent()
 	{
 		editorView.reset();
 	}
