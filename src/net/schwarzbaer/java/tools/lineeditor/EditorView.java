@@ -328,6 +328,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 			super(canvas,0.1f);
 			setPlainMapSurface();
 			setVertAxisDownPositive(true);
+			setHorizAxisRightPositive(true);
 			//debug_showChanges_scalePixelPerLength = true;
 		}
 

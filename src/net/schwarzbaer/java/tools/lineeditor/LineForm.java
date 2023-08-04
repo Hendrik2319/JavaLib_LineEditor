@@ -430,7 +430,32 @@ interface LineForm<HighlightPointType> extends LineFormEditing.EditableForm<High
 			double xCs = viewState.convertPos_AngleToScreen_LongXf(xC);
 			double yCs = viewState.convertPos_AngleToScreen_LatYf (yC);
 			double rs  = viewState.convertLength_LengthToScreenF  (r );
-			drawAccurateArc(g2,xCs,yCs,rs,(float)aStart,(float)aEnd);
+			double aStarts = aStart;
+			double aEnds = aEnd;
+			
+			// lineeditor defaults: 
+			//     setVertAxisDownPositive(true);
+			//     setHorizAxisRightPositive(true);
+			
+			if (!viewState.isHorizAxisRightPositive() && !viewState.isVertAxisDownPositive())
+			{ // rotation by 180°
+				aStarts = aStart+Math.PI;
+				aEnds   = aEnd  +Math.PI;
+			}
+			else if (!viewState.isHorizAxisRightPositive())
+			{ // mirror by Y axis
+				aStarts = Math.PI-aEnd;
+				aEnds   = Math.PI-aStart;
+			}
+			else if (!viewState.isVertAxisDownPositive())
+			{ // mirror by X axis
+				aStarts = -aEnd;
+				aEnds   = -aStart;
+			}
+			
+			drawAccurateArc(g2,xCs,yCs,rs,aStarts,aEnds);
+			
+			
 //			int xCs = viewState.convertPos_AngleToScreen_LongX((float) xC);
 //			int yCs = viewState.convertPos_AngleToScreen_LatY ((float) yC);
 //			int rs  = viewState.convertLength_LengthToScreen((float) r);
