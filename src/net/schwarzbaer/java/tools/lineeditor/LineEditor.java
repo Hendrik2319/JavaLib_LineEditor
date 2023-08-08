@@ -196,8 +196,9 @@ public class LineEditor
 		editorView.reset();
 	}
 
-	public void fitViewToContent()
+	public void fitViewToContent(Rectangle2D.Double minViewSize)
 	{
+		editorView.getViewState().setMinViewSize(minViewSize);
 		editorView.reset();
 	}
 

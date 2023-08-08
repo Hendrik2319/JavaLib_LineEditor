@@ -326,17 +326,25 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	}
 	class ViewState extends ZoomableCanvas.ViewState {
 		
+		private java.awt.geom.Rectangle2D.Double minViewSize;
+
 		private ViewState() {
 			super(EditorView.this,0.1f);
 			setPlainMapSurface();
 			setVertAxisDownPositive(true);
 			setHorizAxisRightPositive(true);
+			minViewSize = null;
 			//debug_showChanges_scalePixelPerLength = true;
+		}
+
+		void setMinViewSize(java.awt.geom.Rectangle2D.Double minViewSize)
+		{
+			this.minViewSize = minViewSize;
 		}
 
 		@Override
 		protected void determineMinMax(MapLatLong min, MapLatLong max) {
-			Rectangle2D.Double bb = null;
+			Rectangle2D.Double bb = minViewSize;
 			if (forms!=null)
 			{
 				for (LineForm<?> form : forms)
