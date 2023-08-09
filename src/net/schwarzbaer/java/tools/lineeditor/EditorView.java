@@ -123,7 +123,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 				if (!isXFixed && resultX!=null) x = resultX.x;
 				if (!isYFixed && resultY!=null) y = resultY.y;
 			}
-			System.out.printf(Locale.ENGLISH, "stickToGuides( x:%1.4f%s, y:%1.4f%s ) -> GlX:%-23s GlY:%-23s FP:%-33s -> ( %1.4f, %1.4f )%n", x,isXFixed?"[F]":"", y,isYFixed?"[F]":"", resultX, resultY, resultP, x,y );
+			//System.out.printf(Locale.ENGLISH, "stickToGuides( x:%1.4f%s, y:%1.4f%s ) -> GlX:%-23s GlY:%-23s FP:%-33s -> ( %1.4f, %1.4f )%n", x,isXFixed?"[F]":"", y,isYFixed?"[F]":"", resultX, resultY, resultP, x,y );
 		}
 		return new Point2D.Double(x,y);
 	}

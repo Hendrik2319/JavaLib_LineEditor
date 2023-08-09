@@ -8,6 +8,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -35,7 +37,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 
-import net.schwarzbaer.java.lib.gui.Disabler;
 import net.schwarzbaer.java.lib.gui.GeneralIcons;
 import net.schwarzbaer.java.lib.gui.GeneralIcons.GrayCommandIcons;
 import net.schwarzbaer.java.lib.gui.ZoomableCanvas;
@@ -231,11 +232,6 @@ public class LineEditor
 		wrapper.add(panel, BorderLayout.CENTER);
 		wrapper.add(createButton("return", e->returnAction.run()), BorderLayout.SOUTH);
 		return wrapper;
-	}
-
-	static <A, C extends JComponent> C addToDisabler(Disabler<A> disabler, A disableTag, C component) {
-		disabler.add(disableTag, component);
-		return component;
 	}
 
 	static JToggleButton createToggleButton(String title, ButtonGroup bg, boolean selected, ActionListener al) {
@@ -451,18 +447,22 @@ public class LineEditor
 			return classObj.cast(result);
 		}
 		
-		enum FormsPanelButtons {
-			New,Edit,Remove,
-			Copy,Paste,MoveUp,MoveDown,
-			Mirror,Translate,RotateCW,RotateCCW
-		}
-		
 		private class FormsPanel extends JPanel {
 			private static final long serialVersionUID = 5266768936706086790L;
 			private final JList<LineForm<?>> formList;
 			private final Vector<LineForm<?>> localClipboard;
-			private Disabler<FormsPanelButtons> disabler;
 			private FormListModel formListModel;
+			private final JButton btnNew;
+			private final JButton btnEdit;
+			private final JButton btnRemove;
+			private final JButton btnCopy;
+			private final JButton btnPaste;
+			private final JButton btnMoveUp;
+			private final JButton btnMoveDown;
+			private final JButton btnMirror;
+			private final JButton btnTranslate;
+			private final JButton btnRotateCW;
+			private final JButton btnRotateCCW;
 			
 			FormsPanel() {
 				super(new BorderLayout(3,3));
@@ -471,15 +471,18 @@ public class LineEditor
 				
 				localClipboard = new Vector<>();
 				
-				disabler = new Disabler<FormsPanelButtons>();
-				disabler.setCareFor(FormsPanelButtons.values());
-				
 				formList = new JList<>();
 				formList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 				formList.addListSelectionListener(e->{
 					List<LineForm<?>> selectedValues = formList.getSelectedValuesList();
 					editorView.setHighlightedForms(selectedValues);
 					updateButtons();
+				});
+				formList.addMouseListener(new MouseAdapter() {
+					@Override public void mouseClicked(MouseEvent e) {
+						if (e.getButton()==MouseEvent.BUTTON1 && e.getClickCount()>=2)
+							editorView.setSelectedForm(formList.getSelectedValue());
+					}
 				});
 				
 				JScrollPane formListScrollPane = new JScrollPane(formList);
@@ -488,31 +491,31 @@ public class LineEditor
 				c.fill = GridBagConstraints.BOTH;
 				
 				JPanel buttonPanel1 = new JPanel(new GridBagLayout());
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.New   , createButton("New"   , GrayCommandIcons.IconGroup.Add   , false, e->context.addForm(createNewForm())                       ) ), c );
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Edit  , createButton("Edit"  ,                                    false, e->editorView.setSelectedForm(formList.getSelectedValue())) ), c );
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Remove, createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeForms(formList.getSelectedValuesList())  ) ), c );
+				buttonPanel1.add( btnNew    = createButton("New"   , GrayCommandIcons.IconGroup.Add   , false, e->context.addForm(createNewForm())                       ), c );
+				buttonPanel1.add( btnEdit   = createButton("Edit"  ,                                    false, e->editorView.setSelectedForm(formList.getSelectedValue())), c );
+				buttonPanel1.add( btnRemove = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeForms(formList.getSelectedValuesList())  ), c );
 				
 				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Copy    , createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())) ), c );
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Paste   , createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ) ), c );
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.MoveUp  , createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
+				buttonPanel2.add( btnCopy   = createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())), c );
+				buttonPanel2.add( btnPaste  = createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ), c );
+				buttonPanel2.add( btnMoveUp = createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], -1, formList::setSelectedIndex);
 					context.formsChanged(true);
-				}) ), c );
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.MoveDown, createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
+				}), c );
+				buttonPanel2.add( btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], +1, formList::setSelectedIndex);
 					context.formsChanged(true);
-				}) ), c );
+				}), c );
 				
 				JPanel buttonPanel3 = new JPanel(new GridBagLayout());
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Mirror   , createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ) ), c );
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Translate, createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ) ), c );
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.RotateCW , createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, e->rotateForms90(formList.getSelectedValuesList(), true ) ) ), c );
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.RotateCCW, createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms90(formList.getSelectedValuesList(), false) ) ), c );
+				buttonPanel3.add( btnMirror    = createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ), c );
+				buttonPanel3.add( btnTranslate = createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ), c );
+				buttonPanel3.add( btnRotateCW  = createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, e->rotateForms90(formList.getSelectedValuesList(), true ) ), c );
+				buttonPanel3.add( btnRotateCCW = createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms90(formList.getSelectedValuesList(), false) ), c );
 				
 				JPanel buttonGroupsPanel = new JPanel(new GridLayout(0,1));
 				buttonGroupsPanel.add(buttonPanel1);
@@ -587,22 +590,19 @@ public class LineEditor
 
 			private void updateButtons() {
 				int[] selectedIndices = formList.getSelectedIndices();
+				btnNew      .setEnabled(context.canModifyFormsList());
+				btnEdit     .setEnabled(selectedIndices.length==1);
+				btnRemove   .setEnabled(selectedIndices.length>0);
 				
-				disabler.setEnable(button->{
-					switch (button) {
-					case New     : return context.canModifyFormsList();
-					case Edit    : return selectedIndices.length==1;
-					case MoveUp  : return formListModel!=null && selectedIndices.length==1 && formListModel.canMove(selectedIndices[0],-1);
-					case MoveDown: return formListModel!=null && selectedIndices.length==1 && formListModel.canMove(selectedIndices[0],+1);
-					case Copy: case Remove:
-					case Mirror: case Translate:
-					case RotateCW: case RotateCCW:
-						return selectedIndices.length>0;
-					case Paste:
-						return !localClipboard.isEmpty();
-					}
-					return false;
-				});
+				btnCopy     .setEnabled(selectedIndices.length>0);
+				btnPaste    .setEnabled(!localClipboard.isEmpty());
+				btnMoveUp   .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],-1));
+				btnMoveDown .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],+1));
+				
+				btnMirror   .setEnabled(selectedIndices.length>0);
+				btnTranslate.setEnabled(selectedIndices.length>0);
+				btnRotateCW .setEnabled(selectedIndices.length>0);
+				btnRotateCCW.setEnabled(selectedIndices.length>0);
 			}
 
 			private LineForm<?> createNewForm() {
@@ -668,16 +668,22 @@ public class LineEditor
 					updateButtons();
 					editorView.setHighlightedGuideLine(selectedGuideLine);
 				});
+				guideLineList.addMouseListener(new MouseAdapter() {
+					@Override public void mouseClicked(MouseEvent e) {
+						if (e.getButton()==MouseEvent.BUTTON1 && e.getClickCount()>=2)
+							editGuideLine(selectedGuideLine);
+					}
+				});
 				
 				JScrollPane guideLineListScrollPane = new JScrollPane(guideLineList);
 				
 				JPanel buttonPanel = new JPanel(new GridBagLayout());
 				GridBagConstraints c = new GridBagConstraints();
 				c.fill = GridBagConstraints.BOTH;
-				buttonPanel.add(btnNew      = createButton("New"   , true , e->context.addGuideLine(createNewGuideLine())), c);
-				buttonPanel.add(btnEdit     = createButton("Edit"  , false, e->editGuideLine(selectedGuideLine)), c);
-				buttonPanel.add(btnRemove   = createButton("Remove", false, e->context.removeGuideLine(selectedIndex)), c);
-				buttonPanel.add(btnMoveUp   = createButton(null, GrayCommandIcons.IconGroup.Up  , false, e->{
+				buttonPanel.add(btnNew      = createButton("New"   , GrayCommandIcons.IconGroup.Add   , true , e->context.addGuideLine(createNewGuideLine())), c);
+				buttonPanel.add(btnEdit     = createButton("Edit"  ,                                    false, e->editGuideLine(selectedGuideLine)), c);
+				buttonPanel.add(btnRemove   = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeGuideLine(selectedIndex)), c);
+				buttonPanel.add(btnMoveUp   = createButton(null    , GrayCommandIcons.IconGroup.Up    , false, e->{
 					if (guideLineListModel!=null)
 					{
 						guideLineListModel.move(selectedIndex, -1, guideLineList::setSelectedIndex);
@@ -742,6 +748,7 @@ public class LineEditor
 			
 			void updateAfterGuideLinesChange()
 			{
+				guideLineList.repaint();
 				updateButtons();
 			}
 
