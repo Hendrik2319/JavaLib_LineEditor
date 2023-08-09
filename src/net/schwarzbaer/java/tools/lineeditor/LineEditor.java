@@ -67,7 +67,7 @@ public class LineEditor
 	private GuideLinesStorage guideLinesStorage;
 
 	public LineEditor(Rectangle2D.Double initialViewRect, Context context, EditorViewFeature... features) {
-		guideLinesStorage = new GuideLinesStorage();
+		guideLinesStorage = null;
 		
 		generalOptionPanel = new GeneralOptionPanel(new GeneralOptionPanel.Context() {
 			@Override public void repaintView() { editorView.repaint(); }
@@ -84,7 +84,14 @@ public class LineEditor
 			}
 			
 			@Override
+			public boolean canCreateNewGuideLine()
+			{
+				return guideLinesStorage!=null;
+			}
+			
+			@Override
 			public void addGuideLine(GuideLine guideLine) {
+				if (guideLinesStorage==null) return;
 				if (guideLine==null) return;
 				guideLinesStorage.guideLines.add(guideLine);
 				editorView        .setGuideLines(guideLinesStorage.guideLines);
@@ -94,6 +101,7 @@ public class LineEditor
 
 			@Override
 			public void removeGuideLine(int index) {
+				if (guideLinesStorage==null) return;
 				if (index<0 || index>=guideLinesStorage.guideLines.size()) return;
 				guideLinesStorage.guideLines.remove(index);
 				editorView        .setGuideLines(guideLinesStorage.guideLines);
@@ -272,6 +280,12 @@ public class LineEditor
 		return new LineForm.Factory();
 	}
 
+	public static Vector<Form> copy(Vector<Form> forms)
+	{
+		List<Form> list = forms.stream().map(f -> LineForm.convert(LineForm.clone(LineForm.convert(f)))).toList();
+		return new Vector<>(list);
+	}
+
 	public static class GuideLinesStorage
 	{
         private final Vector<GuideLine> guideLines;
@@ -280,6 +294,28 @@ public class LineEditor
         {
         	guideLines = new Vector<>();        	
         }
+        public GuideLinesStorage(GuideLinesStorage other)
+        {
+        	this();
+        	add(other);
+        }
+
+		public void replace(GuideLinesStorage other)
+		{
+			guideLines.clear();
+			add(other);
+		}
+		
+		public void add(GuideLinesStorage other)
+		{
+        	for (GuideLine gl : other.guideLines)
+        		guideLines.add(new GuideLine(gl));
+		}
+		
+		public boolean isEmpty()
+		{
+			return guideLines.isEmpty();
+		}
 
 		public void writeToFile(PrintWriter out)
 		{
@@ -376,9 +412,11 @@ public class LineEditor
 		}
 		
 		interface Context {
+			boolean canCreateNewForm();
 			void addForm (LineForm<?> form);
 			void addForms(Vector<LineForm<?>> forms);
 			void removeForms(List<LineForm<?>> forms);
+			boolean canCreateNewGuideLine();
 			void addGuideLine(GuideLine guideLine);
 			void removeGuideLine(int index);
 			void changeHighlightedForms(List<LineForm<?>> forms);
@@ -386,7 +424,6 @@ public class LineEditor
 			void changeHighlightedGuideLine(GuideLine guideLine);
 			void repaintView();
 			Rectangle2D.Float getViewRectangle();
-			boolean canCreateNewForm();
 			void guideLineChanged();
 		}
 	
@@ -540,34 +577,40 @@ public class LineEditor
 			private final JButton btnNew;
 			private final JButton btnEdit;
 			private final JButton btnRemove;
+			private GuideLine selectedGuideLine;
+			private int selectedIndex;
 	
 			GuideLinesPanel() {
 				super(new BorderLayout(3,3));
 				setBorder(BorderFactory.createEmptyBorder(3,3,3,3));
+				selectedGuideLine = null;
+				selectedIndex = -1;
 				
 				guideLineList = new JList<GuideLine>();
 				guideLineList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 				guideLineList.addListSelectionListener(e->{
-					GuideLine selected = guideLineList.getSelectedValue();
-					setButtonsEnabled(selected!=null);
-					context.changeHighlightedGuideLine(selected);
+					selectedGuideLine = guideLineList.getSelectedValue();
+					selectedIndex = guideLineList.getSelectedIndex();
+					updateButtons();
+					context.changeHighlightedGuideLine(selectedGuideLine);
 				});
 				
 				JScrollPane guideLineListScrollPane = new JScrollPane(guideLineList);
 				
 				JPanel buttonPanel = new JPanel(new GridBagLayout());
 				buttonPanel.add(btnNew    = createButton("New"   , true , e->context.addGuideLine(createNewGuideLine())));
-				buttonPanel.add(btnEdit   = createButton("Edit"  , false, e->editGuideLine(guideLineList.getSelectedValue())));
-				buttonPanel.add(btnRemove = createButton("Remove", false, e->context.removeGuideLine(guideLineList.getSelectedIndex())));
+				buttonPanel.add(btnEdit   = createButton("Edit"  , false, e->editGuideLine(selectedGuideLine)));
+				buttonPanel.add(btnRemove = createButton("Remove", false, e->context.removeGuideLine(selectedIndex)));
 				
 				add(guideLineListScrollPane,BorderLayout.CENTER);
 				add(buttonPanel,BorderLayout.SOUTH);
+				updateButtons();
 			}
 	
-			private void setButtonsEnabled(boolean enabled) {
-				btnNew   .setEnabled(true);
-				btnEdit  .setEnabled(enabled);
-				btnRemove.setEnabled(enabled);
+			private void updateButtons() {
+				btnNew   .setEnabled(context.canCreateNewGuideLine());
+				btnEdit  .setEnabled(selectedGuideLine!=null);
+				btnRemove.setEnabled(selectedGuideLine!=null);
 			}
 
 			private GuideLine createNewGuideLine() {
@@ -602,6 +645,7 @@ public class LineEditor
 
 			void setGuideLines(Vector<GuideLine> guideLines) {
 				guideLineList.setModel(new GuideLineListModel(guideLines));
+				updateButtons();
 			}
 			
 			private final class GuideLineListModel implements ListModel<GuideLine> {

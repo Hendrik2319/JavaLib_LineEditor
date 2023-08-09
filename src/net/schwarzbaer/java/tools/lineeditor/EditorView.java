@@ -104,19 +104,29 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 			GuideResult resultX = !stickToGuideLines ? null : GuideLine.stickToGuideLines(x, Type.Vertical  , maxDist, guideLines);
 			GuideResult resultY = !stickToGuideLines ? null : GuideLine.stickToGuideLines(y, Type.Horizontal, maxDist, guideLines);
 			GuideResult resultP = !stickToFormPoints ? null : stickToFormPoints(x,y,maxDist);
-			//System.out.printf(Locale.ENGLISH, "stickToGuides( x:%1.3f%s, y:%1.3f%s) -> GlX:%s GlY:%s FP:%s%n", x,isXFixed?"[F]":"", y,isYFixed?"[F]":"", resultX, resultY, resultP );
 			
-			if (!isXFixed && !isYFixed &&
-				resultP!=null && resultP.x!=null && resultP.y!=null &&
-				(resultX==null || resultP.dist<resultX.dist) &&
-				(resultY==null || resultP.dist<resultY.dist))
-				return new Point2D.Double(resultP.x, resultP.y);
-			if (!isXFixed && resultX!=null && resultX.x!=null) x = resultX.x;
-			if (!isYFixed && resultY!=null && resultY.y!=null) y = resultY.y;
+			if (!isXFixed && !isYFixed && resultP!=null && 
+				( resultX==null || resultP.dist<=resultX.dist || isNear(resultP.x,resultX.x, resultP.dist/20) ) &&
+				( resultY==null || resultP.dist<=resultY.dist || isNear(resultP.y,resultY.y, resultP.dist/20) )
+			) {
+				x = resultP.x;
+				y = resultP.y;
+			}
+			else
+			{
+				if (!isXFixed && resultX!=null) x = resultX.x;
+				if (!isYFixed && resultY!=null) y = resultY.y;
+			}
+			System.out.printf(Locale.ENGLISH, "stickToGuides( x:%1.4f%s, y:%1.4f%s ) -> GlX:%-23s GlY:%-23s FP:%-33s -> ( %1.4f, %1.4f )%n", x,isXFixed?"[F]":"", y,isYFixed?"[F]":"", resultX, resultY, resultP, x,y );
 		}
 		return new Point2D.Double(x,y);
 	}
 
+
+	private boolean isNear(double val1, double val2, double threshold)
+	{
+		return Math.abs(val1-val2) < threshold;
+	}
 
 	private GuideResult stickToFormPoints(double x, double y, double maxDist) {
 		if (forms==null) return null;
@@ -381,9 +391,9 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	{
 		@Override
 		public String toString() {
-			String xStr = x==null?"":String.format(Locale.ENGLISH, "X:%1.3f, ", x);
-			String yStr = y==null?"":String.format(Locale.ENGLISH, "Y:%1.3f, ", y);
-			return String.format("(%s%sdist:%1.3f)", xStr, yStr, dist);
+			String xStr = x==null?"":String.format(Locale.ENGLISH, "X:%1.4f, ", x);
+			String yStr = y==null?"":String.format(Locale.ENGLISH, "Y:%1.4f, ", y);
+			return String.format(Locale.ENGLISH, "(%s%sdist:%1.4f)", xStr, yStr, dist);
 		}
 	}
 	
@@ -417,6 +427,11 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 			this.type = type;
 			this.pos = pos;
 			Debug.Assert(this.type!=null);
+		}
+
+		GuideLine(GuideLine other)
+		{
+			this(other.type,other.pos);
 		}
 
 		@Override
