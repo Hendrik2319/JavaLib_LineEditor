@@ -55,7 +55,22 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 	@Override LineForm<HighlightPointType> setValues(double[] values);
 	void mirror(MirrorDirection dir, double pos);
 	void translate(double x, double y);
+	void rotate90(double centerX, double centerY, boolean mathPosDir);
 	void forEachPoint(BiConsumer<Double,Double> action);
+	
+	default Point2D.Double rotate90(double x, double y, double centerX, double centerY, boolean mathPosDir)
+	{
+		x -= centerX;
+		y -= centerY;
+		Point2D.Double p;
+		if (mathPosDir)
+			p = new Point2D.Double( -y,  x );
+		else
+			p = new Point2D.Double(  y, -x );
+		p.x += centerX;
+		p.y += centerY;
+		return p;
+	}
 
 	static LineForm<?> convert(Form form) {
 		Debug.Assert(form instanceof LineForm);
@@ -156,6 +171,13 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 				case Vertical_TopBottom  : p.y = pos - (p.y-pos); break;
 				}
 			}
+		}
+		
+		@Override
+		public void rotate90(double centerX, double centerY, boolean mathPosDir)
+		{
+			for (Point p:points)
+				p.set(rotate90(p.x, p.y, centerX, centerY, mathPosDir));
 		}
 		
 		@Override
@@ -320,6 +342,15 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 				break;
 			}
 		}
+		
+		@Override
+		public void rotate90(double centerX, double centerY, boolean mathPosDir)
+		{
+			Point2D.Double p1 = rotate90(x1, y1, centerX, centerY, mathPosDir);
+			Point2D.Double p2 = rotate90(x2, y2, centerX, centerY, mathPosDir);
+			x1 = p1.x; y1 = p1.y;
+			x2 = p2.x; y2 = p2.y;
+		}
 
 		@Override public void drawLines(Graphics2D g2, ViewState viewState) {
 			int x1s = viewState.convertPos_AngleToScreen_LongX(x1);
@@ -422,6 +453,23 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 				aStart = -aEnd;
 				aEnd   = -aStart_temp;
 				break;
+			}
+		}
+		
+		@Override
+		public void rotate90(double centerX, double centerY, boolean mathPosDir)
+		{
+			Point2D.Double p = rotate90(xC, yC, centerX, centerY, mathPosDir);
+			xC = p.x; yC = p.y;
+			if (mathPosDir)
+			{
+				aStart += Math.PI/2;
+				aEnd   += Math.PI/2;
+			}
+			else
+			{
+				aStart -= Math.PI/2;
+				aEnd   -= Math.PI/2;
 			}
 		}
 

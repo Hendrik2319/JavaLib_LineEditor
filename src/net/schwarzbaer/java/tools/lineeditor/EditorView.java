@@ -23,6 +23,7 @@ import net.schwarzbaer.java.lib.gui.ZoomableCanvas;
 import net.schwarzbaer.java.lib.image.linegeometry.Form;
 import net.schwarzbaer.java.lib.image.linegeometry.Math2;
 import net.schwarzbaer.java.tools.lineeditor.EditorView.GuideLine.Type;
+import net.schwarzbaer.java.tools.lineeditor.LineEditor.GuideLinesStorage;
 
 class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	
@@ -40,7 +41,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	private static final Color COLOR_POINT_CONTOUR          = Color.BLACK;
 
 	private LineForm<?>[] forms = null;
-	private Vector<GuideLine> guideLines = null;
+	private GuideLinesStorage guideLines = null;
 	private final HashSet<LineForm<?>> highlightedForms = new HashSet<>();
 	private LineFormEditing<?> formEditing = null;
 	private GuideLine highlightedGuideLine = null;
@@ -73,8 +74,13 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	void setStickToGuideLines(boolean stickToGuideLines) { this.stickToGuideLines = stickToGuideLines; repaint(); }
 	void setStickToFormPoints(boolean stickToFormPoints) { this.stickToFormPoints = stickToFormPoints; repaint(); }
 
-	void setGuideLines(Vector<GuideLine> guideLines) {
+	void setGuideLines(GuideLinesStorage guideLines) {
 		this.guideLines = guideLines;
+		repaint();
+	}
+
+	void updateAfterGuideLinesChange()
+	{
 		repaint();
 	}
 
@@ -160,7 +166,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 	
 	void forEachGuideLines(BiConsumer<GuideLine.Type,Double> action) {
 		if (guideLines!=null)
-			for (GuideLine gl:guideLines)
+			for (GuideLine gl : guideLines.guideLines)
 				action.accept(gl.type,gl.pos);
 	}
 
@@ -273,7 +279,7 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 					feature.draw(g2, x, y, width, height, viewState, Arrays.asList(forms));
 			
 			if (guideLines!=null)
-				for (GuideLine gl:guideLines) {
+				for (GuideLine gl : guideLines.guideLines) {
 					g2.setColor(gl==highlightedGuideLine ? COLOR_GUIDELINES_HIGHLIGHTED : COLOR_GUIDELINES);
 					gl.draw(viewState,g2,x,y,width,height);
 				}
@@ -439,11 +445,11 @@ class EditorView extends ZoomableCanvas<EditorView.ViewState> {
 			return String.format(Locale.ENGLISH, "%s GuideLine @ %s:%1.2f", type, type.axis, pos);
 		}
 
-		private static GuideResult stickToGuideLines(double val, Type type, double maxDist, Vector<GuideLine> lines) {
+		private static GuideResult stickToGuideLines(double val, Type type, double maxDist, GuideLinesStorage guideLines) {
 			Double dist = null;
 			Double pos = null;
-			if (lines!=null)
-				for (GuideLine gl:lines)
+			if (guideLines!=null)
+				for (GuideLine gl : guideLines.guideLines)
 					if (gl.type==type) {
 						double d = Math.abs(gl.pos-val);
 						if (d<=maxDist && (dist==null || dist>d)) {

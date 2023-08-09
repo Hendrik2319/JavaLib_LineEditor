@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Vector;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
@@ -30,9 +32,12 @@ import javax.swing.JTabbedPane;
 import javax.swing.JToggleButton;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
+import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 
 import net.schwarzbaer.java.lib.gui.Disabler;
+import net.schwarzbaer.java.lib.gui.GeneralIcons;
+import net.schwarzbaer.java.lib.gui.GeneralIcons.GrayCommandIcons;
 import net.schwarzbaer.java.lib.gui.ZoomableCanvas;
 import net.schwarzbaer.java.lib.image.linegeometry.Form;
 import net.schwarzbaer.java.tools.lineeditor.EditorView.GuideLine;
@@ -45,148 +50,158 @@ public class LineEditor
 		public enum Type { Added, Removed, Changed }
 	}
 	
-	public record FormsChangedEvent(FormsChangedEvent.Type type, String caller)
+	public record FormsChangedEvent(FormsChangedEvent.Type type, String caller, Form[] newFormsList)
 	{
+		FormsChangedEvent(FormsChangedEvent.Type type, String caller) { this(type, caller, null); }
 		public enum Type { Added, Removed, Changed }
 	}
 	
 	public interface Context
 	{
 		void switchOptionsPanel(JComponent panel);
-		boolean canCreateNewForm();
-		void replaceForms(Form[] forms);
+		boolean canModifyFormsList();
 		void guideLinesChanged(GuideLinesChangedEvent event);
 		void formsChanged(FormsChangedEvent event);
 	}
 	
 	private LineForm<?>[] lineforms = null;
 	
+	private final Context context;
 	private final EditorView editorView;
 	private final GeneralOptionPanel generalOptionPanel;
 	private final EditorViewContextMenu editorViewContextMenu;
 	private GuideLinesStorage guideLinesStorage;
 
 	public LineEditor(Rectangle2D.Double initialViewRect, Context context, EditorViewFeature... features) {
+		this.context = context;
 		guideLinesStorage = null;
 		
-		generalOptionPanel = new GeneralOptionPanel(new GeneralOptionPanel.Context() {
-			@Override public void repaintView() { editorView.repaint(); }
-			@Override public Rectangle2D.Float getViewRectangle() { return editorView.getViewRectangle(); }
-
-			@Override public void changeHighlightedForms    (List<LineForm<?>> forms) { editorView.setHighlightedForms(forms); }
-			@Override public void changeSelectedForm        (LineForm<?> form       ) { editorView.setSelectedForm    (form); }
-			@Override public void changeHighlightedGuideLine(GuideLine guideLine    ) { editorView.setHighlightedGuideLine(guideLine); }
-			
-			
-			@Override
-			public void guideLineChanged() {
-				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Changed, "GeneralOptionPanel.Context.guideLineChanged"));
-			}
-			
-			@Override
-			public boolean canCreateNewGuideLine()
-			{
-				return guideLinesStorage!=null;
-			}
-			
-			@Override
-			public void addGuideLine(GuideLine guideLine) {
-				if (guideLinesStorage==null) return;
-				if (guideLine==null) return;
-				guideLinesStorage.guideLines.add(guideLine);
-				editorView        .setGuideLines(guideLinesStorage.guideLines);
-				generalOptionPanel.setGuideLines(guideLinesStorage.guideLines);
-				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Added, "GeneralOptionPanel.Context.addGuideLine"));
-			}
-
-			@Override
-			public void removeGuideLine(int index) {
-				if (guideLinesStorage==null) return;
-				if (index<0 || index>=guideLinesStorage.guideLines.size()) return;
-				guideLinesStorage.guideLines.remove(index);
-				editorView        .setGuideLines(guideLinesStorage.guideLines);
-				generalOptionPanel.setGuideLines(guideLinesStorage.guideLines);
-				context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeGuideLine"));
-			}
-
-			@Override
-			public void addForm(LineForm<?> form) {
-				if (form==null) return;
-				LineForm<?>[] newArr = lineforms==null ? new LineForm[1] : Arrays.copyOf(lineforms, lineforms.length+1);
-				newArr[newArr.length-1] = form;
-				setNewArray(newArr);
-				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForm"));
-			}
-			@Override
-			public void addForms(Vector<LineForm<?>> forms) {
-				if (forms==null || forms.isEmpty()) return;
-				LineForm<?>[] newArr = lineforms==null ? new LineForm[forms.size()] : Arrays.copyOf(lineforms, lineforms.length+forms.size());
-				int offset = lineforms==null ? 0 : lineforms.length;
-				for (int i=0; i<forms.size(); i++)
-					newArr[offset+i] = forms.get(i);
-				setNewArray(newArr);
-				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForms"));
-			}
-			@Override
-			public void removeForms(List<LineForm<?>> forms) {
-				if (forms==null || forms.isEmpty()) return;
-				Vector<LineForm<?>> vec = new Vector<>(Arrays.asList(lineforms));
-				for (LineForm<?> rf:forms) vec.remove(rf);
-				LineForm<?>[] newArr = vec.toArray(new LineForm<?>[vec.size()]);
-				setNewArray(newArr);
-				context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeForms"));
-			}
-
-			private void setNewArray(LineForm<?>[] newArr) {
-				lineforms = newArr;
-				editorView.setForms(lineforms);
-				generalOptionPanel.setForms(lineforms);
-				if (context.canCreateNewForm()) {
-					context.replaceForms(LineForm.convert(lineforms));
-				}
-			}
-			@Override
-			public boolean canCreateNewForm()
-			{
-				return context.canCreateNewForm();
-			}
-			
-		});
-		generalOptionPanel.setPreferredSize(new Dimension(200, 200));
-		
-		editorView = new EditorView(initialViewRect, features, new EditorView.Context() {
-			boolean lastPanelWasFormPanel = false;
-			
-			@Override public void updateHighlightedForms(HashSet<LineForm<?>> forms) {
-				if (lineforms==null)
-					generalOptionPanel.setSelectedForms(new int[0]);
-				else {
-					Vector<Integer> indices = new Vector<>();
-					for (int i=0; i<lineforms.length; i++) {
-						LineForm<?> form = lineforms[i];
-						if (forms.contains(form)) indices.add(i);
-					}
-					generalOptionPanel.setSelectedForms(indices.stream().mapToInt(v->v).toArray());
-				}
-			}
-			@Override public void setValuePanel(JPanel panel) {
-				if (panel == null)
-				{
-					context.switchOptionsPanel(generalOptionPanel);
-					if (lastPanelWasFormPanel)
-						context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Changed, "EditorView.Context.setValuePanel"));
-				}
-				else
-					context.switchOptionsPanel(createReturnWrapperPanel(panel, ()->editorView.deselect()));
-				lastPanelWasFormPanel = panel!=null;
-			}
-			@Override public void showsContextMenu(int x, int y) {
-				editorViewContextMenu.prepareToShow();
-				editorViewContextMenu.show(editorView, x,y);
-			}
-		});
+		editorView = new EditorView(initialViewRect, features, new EditorViewContext());
 		editorView.setPreferredSize(500, 500);
 		editorViewContextMenu = new EditorViewContextMenu(editorView, features);
+		
+		generalOptionPanel = new GeneralOptionPanel(editorView, new GeneralOptionPanelContext());
+		generalOptionPanel.setPreferredSize(new Dimension(200, 200));
+	}
+	
+	private class EditorViewContext implements EditorView.Context
+	{
+		boolean lastPanelWasFormPanel = false;
+		
+		@Override public void updateHighlightedForms(HashSet<LineForm<?>> forms) {
+			if (lineforms==null)
+				generalOptionPanel.setSelectedForms(new int[0]);
+			else {
+				Vector<Integer> indices = new Vector<>();
+				for (int i=0; i<lineforms.length; i++) {
+					LineForm<?> form = lineforms[i];
+					if (forms.contains(form)) indices.add(i);
+				}
+				generalOptionPanel.setSelectedForms(indices.stream().mapToInt(v->v).toArray());
+			}
+		}
+		@Override public void setValuePanel(JPanel panel) {
+			if (panel == null)
+			{
+				context.switchOptionsPanel(generalOptionPanel);
+				if (lastPanelWasFormPanel)
+					context.formsChanged(new FormsChangedEvent(FormsChangedEvent.Type.Changed, "EditorView.Context.setValuePanel"));
+			}
+			else
+				context.switchOptionsPanel(createReturnWrapperPanel(panel, ()->editorView.deselect()));
+			lastPanelWasFormPanel = panel!=null;
+		}
+		@Override public void showsContextMenu(int x, int y) {
+			editorViewContextMenu.prepareToShow();
+			editorViewContextMenu.show(editorView, x,y);
+		}
+	}
+	
+	private class GeneralOptionPanelContext implements GeneralOptionPanel.Context
+	{
+		@Override
+		public boolean canCreateNewGuideLine()
+		{
+			return guideLinesStorage!=null;
+		}
+		
+		@Override
+		public void guideLineChanged() {
+			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Changed, "GeneralOptionPanel.Context.guideLineChanged"));
+		}
+
+		@Override
+		public void addGuideLine(GuideLine guideLine) {
+			if (guideLinesStorage==null) return;
+			if (guideLine==null) return;
+			guideLinesStorage.guideLines.add(guideLine);
+			editorView        .updateAfterGuideLinesChange();
+			generalOptionPanel.updateAfterGuideLinesChange();
+			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Added, "GeneralOptionPanel.Context.addGuideLine"));
+		}
+
+		@Override
+		public void removeGuideLine(int index) {
+			if (guideLinesStorage==null) return;
+			if (index<0 || index>=guideLinesStorage.guideLines.size()) return;
+			guideLinesStorage.guideLines.remove(index);
+			editorView        .updateAfterGuideLinesChange();
+			generalOptionPanel.updateAfterGuideLinesChange();
+			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeGuideLine"));
+		}
+
+		@Override
+		public boolean canModifyFormsList()
+		{
+			return context.canModifyFormsList();
+		}
+
+		@Override
+		public void formsChanged(boolean propagateList) {
+			context.formsChanged(
+				new FormsChangedEvent(
+					FormsChangedEvent.Type.Changed,
+					"GeneralOptionPanel.Context.formsChanged",
+					propagateList
+						? LineForm.convert(lineforms)
+						: null
+				)
+			);
+		}
+
+		@Override
+		public void addForm(LineForm<?> form) {
+			if (form==null) return;
+			LineForm<?>[] newArr = lineforms==null ? new LineForm[1] : Arrays.copyOf(lineforms, lineforms.length+1);
+			newArr[newArr.length-1] = form;
+			setNewArray(newArr, FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForm");
+		}
+		@Override
+		public void addForms(Vector<LineForm<?>> forms) {
+			if (forms==null || forms.isEmpty()) return;
+			LineForm<?>[] newArr = lineforms==null ? new LineForm[forms.size()] : Arrays.copyOf(lineforms, lineforms.length+forms.size());
+			int offset = lineforms==null ? 0 : lineforms.length;
+			for (int i=0; i<forms.size(); i++)
+				newArr[offset+i] = forms.get(i);
+			setNewArray(newArr, FormsChangedEvent.Type.Added, "GeneralOptionPanel.Context.addForms");
+		}
+		@Override
+		public void removeForms(List<LineForm<?>> forms) {
+			if (forms==null || forms.isEmpty()) return;
+			Vector<LineForm<?>> vec = new Vector<>(Arrays.asList(lineforms));
+			for (LineForm<?> rf:forms) vec.remove(rf);
+			LineForm<?>[] newArr = vec.toArray(new LineForm<?>[vec.size()]);
+			setNewArray(newArr, FormsChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeForms");
+		}
+
+		private void setNewArray(LineForm<?>[] newArr, FormsChangedEvent.Type eventType, String caller)
+		{
+			lineforms = newArr;
+			editorView        .setForms(lineforms);
+			generalOptionPanel.setForms(lineforms);
+			if (!context.canModifyFormsList()) throw new IllegalStateException();
+			context.formsChanged(new FormsChangedEvent(eventType, caller, LineForm.convert(lineforms)));
+		}
 	}
 	
 	public Component getEditorView()
@@ -231,12 +246,16 @@ public class LineEditor
 	}
 
 	static JButton createButton(String title, ActionListener al) {
-		return createButton(title, true, al);
+		return createButton(title, null, true, al);
 	}
 	static JButton createButton(String title, boolean enabled, ActionListener al) {
+		return createButton(title, null, enabled, al);
+	}
+	static JButton createButton(String title, GeneralIcons.IconGroup icons, boolean enabled, ActionListener al) {
 		JButton comp = new JButton(title);
 		comp.setEnabled(enabled);
 		if (al!=null) comp.addActionListener(al);
+		if (icons!=null) { comp.setIcon(icons.getEnabledIcon()); comp.setDisabledIcon(icons.getDisabledIcon()); }
 		return comp;
 	}
 	
@@ -255,16 +274,15 @@ public class LineEditor
 	public void setForms(Form[] forms)
 	{
 		lineforms = LineForm.convert(forms);
-		editorView.setForms(lineforms);
+		editorView        .setForms(lineforms);
 		generalOptionPanel.setForms(lineforms);
 	}
 	
 	public void setGuideLines(GuideLinesStorage guideLinesStorage)
 	{
 		this.guideLinesStorage = guideLinesStorage;
-		Vector<GuideLine> guideLines = guideLinesStorage==null ? null : guideLinesStorage.guideLines;
-		editorView        .setGuideLines(guideLines);
-		generalOptionPanel.setGuideLines(guideLines);
+		editorView        .setGuideLines(this.guideLinesStorage);
+		generalOptionPanel.setGuideLines(this.guideLinesStorage);
 	}
 	public static void drawForms(Graphics2D g2, Form[] forms, ZoomableCanvas.ViewState viewState)
 	{
@@ -288,7 +306,7 @@ public class LineEditor
 
 	public static class GuideLinesStorage
 	{
-        private final Vector<GuideLine> guideLines;
+        final Vector<GuideLine> guideLines;
         
         public GuideLinesStorage()
         {
@@ -351,22 +369,43 @@ public class LineEditor
 
 	private static class GeneralOptionPanel extends JTabbedPane {
 		private static final long serialVersionUID = -2024771038202756837L;
+
+		interface Context
+		{
+			boolean canModifyFormsList();
+			void formsChanged(boolean propagateList);
+			void addForm    (       LineForm<?>  form );
+			void addForms   (Vector<LineForm<?>> forms);
+			void removeForms(List  <LineForm<?>> forms);
+			
+			boolean canCreateNewGuideLine();
+			void guideLineChanged();
+			void addGuideLine(GuideLine guideLine);
+			void removeGuideLine(int index);
+		}
+
+		private final Context context;
 		
+		private final EditorView editorView;
 		private final FormsPanel formsPanel;
 		private final GuideLinesPanel guideLinesPanel;
-
-		private Context context;
 		
-		GeneralOptionPanel(Context context) {
+		GeneralOptionPanel(EditorView editorView, Context context) {
 			super();
+			this.editorView = editorView;
 			this.context = context;
 			setBorder(BorderFactory.createTitledBorder("General"));
 			addTab("Forms"      ,      formsPanel = new      FormsPanel());
 			addTab("Guide Lines", guideLinesPanel = new GuideLinesPanel());
 		}
 		
-		void setGuideLines(Vector<GuideLine> guideLines) {
-			guideLinesPanel.setGuideLines(guideLines);
+		void updateAfterGuideLinesChange()
+		{
+			guideLinesPanel.updateAfterGuideLinesChange();
+		}
+
+		void setGuideLines(GuideLinesStorage guideLinesStorage) {
+			guideLinesPanel.setGuideLines(guideLinesStorage);
 		}
 	
 		void setSelectedForms(int[] selectedIndices) {
@@ -400,6 +439,7 @@ public class LineEditor
 			return showNumberInputDialog(parentComp, message, initialValue, Double::parseDouble);
 		}
 
+		@SuppressWarnings("unused")
 		private Float showFloatInputDialog(Component parentComp, String message, Float initialValue) {
 			return showNumberInputDialog(parentComp, message, initialValue, Float::parseFloat);
 		}
@@ -411,33 +451,23 @@ public class LineEditor
 			return classObj.cast(result);
 		}
 		
-		interface Context {
-			boolean canCreateNewForm();
-			void addForm (LineForm<?> form);
-			void addForms(Vector<LineForm<?>> forms);
-			void removeForms(List<LineForm<?>> forms);
-			boolean canCreateNewGuideLine();
-			void addGuideLine(GuideLine guideLine);
-			void removeGuideLine(int index);
-			void changeHighlightedForms(List<LineForm<?>> forms);
-			void changeSelectedForm(LineForm<?> form);
-			void changeHighlightedGuideLine(GuideLine guideLine);
-			void repaintView();
-			Rectangle2D.Float getViewRectangle();
-			void guideLineChanged();
+		enum FormsPanelButtons {
+			New,Edit,Remove,
+			Copy,Paste,MoveUp,MoveDown,
+			Mirror,Translate,RotateCW,RotateCCW
 		}
-	
-		enum FormsPanelButtons { New,Edit,Remove,Copy,Paste,Mirror,Translate }
 		
 		private class FormsPanel extends JPanel {
 			private static final long serialVersionUID = 5266768936706086790L;
 			private final JList<LineForm<?>> formList;
 			private final Vector<LineForm<?>> localClipboard;
 			private Disabler<FormsPanelButtons> disabler;
+			private FormListModel formListModel;
 			
 			FormsPanel() {
 				super(new BorderLayout(3,3));
 				setBorder(BorderFactory.createEmptyBorder(3,3,3,3));
+				formListModel = null;
 				
 				localClipboard = new Vector<>();
 				
@@ -448,24 +478,41 @@ public class LineEditor
 				formList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 				formList.addListSelectionListener(e->{
 					List<LineForm<?>> selectedValues = formList.getSelectedValuesList();
-					context.changeHighlightedForms(selectedValues);
-					setButtonsEnabled(selectedValues.size());
+					editorView.setHighlightedForms(selectedValues);
+					updateButtons();
 				});
 				
 				JScrollPane formListScrollPane = new JScrollPane(formList);
 				
+				GridBagConstraints c = new GridBagConstraints();
+				c.fill = GridBagConstraints.BOTH;
+				
 				JPanel buttonPanel1 = new JPanel(new GridBagLayout());
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.New   , createButton("New"   , false, e->context.addForm(createNewForm())                       ) ) );
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Edit  , createButton("Edit"  , false, e->context.changeSelectedForm(formList.getSelectedValue())) ) );
-				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Remove, createButton("Remove", false, e->context.removeForms(formList.getSelectedValuesList())  ) ) );
+				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.New   , createButton("New"   , GrayCommandIcons.IconGroup.Add   , false, e->context.addForm(createNewForm())                       ) ), c );
+				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Edit  , createButton("Edit"  ,                                    false, e->editorView.setSelectedForm(formList.getSelectedValue())) ), c );
+				buttonPanel1.add( addToDisabler( disabler, FormsPanelButtons.Remove, createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeForms(formList.getSelectedValuesList())  ) ), c );
 				
 				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Copy  , createButton("Copy" , false, e->copyForms(formList.getSelectedValuesList())) ) );
-				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Paste , createButton("Paste", false, e->pasteForms()                               ) ) );
+				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Copy    , createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())) ), c );
+				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.Paste   , createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ) ), c );
+				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.MoveUp  , createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
+					int[] selectedIndices = formList.getSelectedIndices();
+					if (formListModel==null || selectedIndices.length!=1) return;
+					formListModel.move(selectedIndices[0], -1, formList::setSelectedIndex);
+					context.formsChanged(true);
+				}) ), c );
+				buttonPanel2.add( addToDisabler( disabler, FormsPanelButtons.MoveDown, createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
+					int[] selectedIndices = formList.getSelectedIndices();
+					if (formListModel==null || selectedIndices.length!=1) return;
+					formListModel.move(selectedIndices[0], +1, formList::setSelectedIndex);
+					context.formsChanged(true);
+				}) ), c );
 				
 				JPanel buttonPanel3 = new JPanel(new GridBagLayout());
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Mirror   , createButton("Mirror"   , false, e->mirrorForms   (formList.getSelectedValuesList()) ) ) );
-				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Translate, createButton("Translate", false, e->translateForms(formList.getSelectedValuesList()) ) ) );
+				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Mirror   , createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ) ), c );
+				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.Translate, createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ) ), c );
+				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.RotateCW , createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, e->rotateForms90(formList.getSelectedValuesList(), true ) ) ), c );
+				buttonPanel3.add( addToDisabler( disabler, FormsPanelButtons.RotateCCW, createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms90(formList.getSelectedValuesList(), false) ) ), c );
 				
 				JPanel buttonGroupsPanel = new JPanel(new GridLayout(0,1));
 				buttonGroupsPanel.add(buttonPanel1);
@@ -476,30 +523,50 @@ public class LineEditor
 				add(buttonGroupsPanel,BorderLayout.SOUTH);
 			}
 	
-			private void translateForms(List<LineForm<?>> forms) {
-				Float x = showFloatInputDialog(this, "Set X translation value: ", null);
+			private void rotateForms90(List<LineForm<?>> forms, boolean mathPosDir)
+			{
+				Double x = showDoubleInputDialog(this, "Rotation Center X: ", null);
 				if (x==null) return;
-				Float y = showFloatInputDialog(this, "Set Y translation value: ", null);
+				Double y = showDoubleInputDialog(this, "Rotation Center Y: ", null);
+				if (y==null) return;
+				
+				for (LineForm<?> form:forms)
+					if (form!=null)
+						form.rotate90(x, y, mathPosDir);
+				
+				context.formsChanged(false);
+				editorView.repaint();
+				formList.repaint();
+			}
+
+			private void translateForms(List<LineForm<?>> forms) {
+				Double x = showDoubleInputDialog(this, "Set X translation value: ", null);
+				if (x==null) return;
+				Double y = showDoubleInputDialog(this, "Set Y translation value: ", null);
 				if (y==null) return;
 				
 				for (LineForm<?> form:forms)
 					if (form!=null)
 						form.translate(x,y);
 				
-				context.repaintView();
+				context.formsChanged(false);
+				editorView.repaint();
+				formList.repaint();
 			}
 
 			private void mirrorForms(List<LineForm<?>> forms) {
 				LineForm.MirrorDirection dir = showMultipleChoiceDialog(this, "Select mirror direction:", "Mirror Direction", LineForm.MirrorDirection.values(), null, LineForm.MirrorDirection.class);
 				if (dir==null) return;
-				Float pos = showFloatInputDialog(this, String.format("Set position of %s mirror axis: ", dir.axisPos.toLowerCase()), null);
+				Double pos = showDoubleInputDialog(this, String.format("Set position of %s mirror axis: ", dir.axisPos.toLowerCase()), null);
 				if (pos==null) return;
 				
 				for (LineForm<?> form:forms)
 					if (form!=null)
 						form.mirror(dir,pos);
 				
-				context.repaintView();
+				context.formsChanged(false);
+				editorView.repaint();
+				formList.repaint();
 			}
 
 			private void pasteForms() {
@@ -515,19 +582,24 @@ public class LineEditor
 				for (LineForm<?> form:forms)
 					if (form!=null)
 						localClipboard.add(LineForm.clone(form));
-				setButtonsEnabled(formList.getSelectedValuesList().size());
+				updateButtons();
 			}
 
-			private void setButtonsEnabled(int selection) {
+			private void updateButtons() {
+				int[] selectedIndices = formList.getSelectedIndices();
+				
 				disabler.setEnable(button->{
 					switch (button) {
-					case New: return context.canCreateNewForm();
-					case Edit: return selection==1;
-					case Copy:
-					case Remove:
-					case Mirror:
-					case Translate: return selection>0;
-					case Paste: return !localClipboard.isEmpty();
+					case New     : return context.canModifyFormsList();
+					case Edit    : return selectedIndices.length==1;
+					case MoveUp  : return formListModel!=null && selectedIndices.length==1 && formListModel.canMove(selectedIndices[0],-1);
+					case MoveDown: return formListModel!=null && selectedIndices.length==1 && formListModel.canMove(selectedIndices[0],+1);
+					case Copy: case Remove:
+					case Mirror: case Translate:
+					case RotateCW: case RotateCCW:
+						return selectedIndices.length>0;
+					case Paste:
+						return !localClipboard.isEmpty();
 					}
 					return false;
 				});
@@ -536,37 +608,35 @@ public class LineEditor
 			private LineForm<?> createNewForm() {
 				FormType formType = showMultipleChoiceDialog(this, "Select type of new form:", "Form Type", LineForm.FormType.values(), null, LineForm.FormType.class);
 				if (formType==null) return null;
-				return LineForm.createNew(formType, context.getViewRectangle());
+				return LineForm.createNew(formType, editorView.getViewRectangle());
 			}
 
 			void setSelected(int[] selectedIndices) {
 				if (selectedIndices==null || selectedIndices.length==0) formList.clearSelection();
 				else formList.setSelectedIndices(selectedIndices);
-				setButtonsEnabled(selectedIndices==null ? 0 : selectedIndices.length);
+				updateButtons();
 			}
 	
 			void setForms(LineForm<?>[] forms) {
-				formList.setModel(new FormListModel(forms));
-				disabler.setEnable(FormsPanelButtons.New, context.canCreateNewForm());
+				formList.setModel(formListModel = new FormListModel(forms));
+				updateButtons();
 			}
 	
-			private final class FormListModel implements ListModel<LineForm<?>> {
-				private LineForm<?>[] forms;
-				private Vector<ListDataListener> listDataListeners;
+			private final class FormListModel extends AbstractListModel<LineForm<?>> {
+				private final LineForm<?>[] forms;
 				
 				public FormListModel(LineForm<?>[] forms) {
+					super(null, null, (index1, index2) -> {
+						LineForm<?> temp = forms[index1];
+						forms[index1] = forms[index2];
+						forms[index2] = temp;
+					});
 					this.forms = forms;
-					listDataListeners = new Vector<>();
 				}
 	
+				@Override protected boolean hasData() { return forms!=null; }
 				@Override public int getSize() { return forms==null ? 0 : forms.length; }
-				@Override public LineForm<?> getElementAt(int index) {
-					if (forms==null || index<0 || index>=forms.length) return null;
-					return forms[index];
-				}
-			
-				@Override public void    addListDataListener(ListDataListener l) { listDataListeners.   add(l); }
-				@Override public void removeListDataListener(ListDataListener l) { listDataListeners.remove(l);}
+				@Override public LineForm<?> getElementAt(int index) { return isIndexOk(index) ? forms[index] : null; }
 			}
 			
 		}
@@ -577,14 +647,18 @@ public class LineEditor
 			private final JButton btnNew;
 			private final JButton btnEdit;
 			private final JButton btnRemove;
+			private final JButton btnMoveUp;
+			private final JButton btnMoveDown;
 			private GuideLine selectedGuideLine;
 			private int selectedIndex;
+			private GuideLineListModel guideLineListModel;
 	
 			GuideLinesPanel() {
 				super(new BorderLayout(3,3));
 				setBorder(BorderFactory.createEmptyBorder(3,3,3,3));
 				selectedGuideLine = null;
 				selectedIndex = -1;
+				guideLineListModel = null;
 				
 				guideLineList = new JList<GuideLine>();
 				guideLineList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -592,15 +666,31 @@ public class LineEditor
 					selectedGuideLine = guideLineList.getSelectedValue();
 					selectedIndex = guideLineList.getSelectedIndex();
 					updateButtons();
-					context.changeHighlightedGuideLine(selectedGuideLine);
+					editorView.setHighlightedGuideLine(selectedGuideLine);
 				});
 				
 				JScrollPane guideLineListScrollPane = new JScrollPane(guideLineList);
 				
 				JPanel buttonPanel = new JPanel(new GridBagLayout());
-				buttonPanel.add(btnNew    = createButton("New"   , true , e->context.addGuideLine(createNewGuideLine())));
-				buttonPanel.add(btnEdit   = createButton("Edit"  , false, e->editGuideLine(selectedGuideLine)));
-				buttonPanel.add(btnRemove = createButton("Remove", false, e->context.removeGuideLine(selectedIndex)));
+				GridBagConstraints c = new GridBagConstraints();
+				c.fill = GridBagConstraints.BOTH;
+				buttonPanel.add(btnNew      = createButton("New"   , true , e->context.addGuideLine(createNewGuideLine())), c);
+				buttonPanel.add(btnEdit     = createButton("Edit"  , false, e->editGuideLine(selectedGuideLine)), c);
+				buttonPanel.add(btnRemove   = createButton("Remove", false, e->context.removeGuideLine(selectedIndex)), c);
+				buttonPanel.add(btnMoveUp   = createButton(null, GrayCommandIcons.IconGroup.Up  , false, e->{
+					if (guideLineListModel!=null)
+					{
+						guideLineListModel.move(selectedIndex, -1, guideLineList::setSelectedIndex);
+						context.guideLineChanged();
+					}
+				}), c);
+				buttonPanel.add(btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down, false, e->{
+					if (guideLineListModel!=null)
+					{
+						guideLineListModel.move(selectedIndex, +1, guideLineList::setSelectedIndex);
+						context.guideLineChanged();
+					}
+				}), c);
 				
 				add(guideLineListScrollPane,BorderLayout.CENTER);
 				add(buttonPanel,BorderLayout.SOUTH);
@@ -608,9 +698,11 @@ public class LineEditor
 			}
 	
 			private void updateButtons() {
-				btnNew   .setEnabled(context.canCreateNewGuideLine());
-				btnEdit  .setEnabled(selectedGuideLine!=null);
-				btnRemove.setEnabled(selectedGuideLine!=null);
+				btnNew     .setEnabled(context.canCreateNewGuideLine());
+				btnEdit    .setEnabled(selectedGuideLine!=null);
+				btnRemove  .setEnabled(selectedGuideLine!=null);
+				btnMoveUp  .setEnabled(guideLineListModel!=null && guideLineListModel.canMove(selectedIndex,-1));
+				btnMoveDown.setEnabled(guideLineListModel!=null && guideLineListModel.canMove(selectedIndex,+1));
 			}
 
 			private GuideLine createNewGuideLine() {
@@ -630,7 +722,7 @@ public class LineEditor
 				if (pos==null) return;
 				
 				selected.pos = pos;
-				context.repaintView();
+				editorView.repaint();
 				context.guideLineChanged();
 				guideLineList.repaint();
 			}
@@ -643,32 +735,91 @@ public class LineEditor
 				return showDoubleInputDialog(this,String.format("Set %s position of %s guideline:", type.axis, type.toString().toLowerCase()), initialPos);
 			}
 
-			void setGuideLines(Vector<GuideLine> guideLines) {
-				guideLineList.setModel(new GuideLineListModel(guideLines));
+			void setGuideLines(GuideLinesStorage guideLinesStorage) {
+				guideLineList.setModel(guideLineListModel = new GuideLineListModel(guideLinesStorage));
 				updateButtons();
 			}
 			
-			private final class GuideLineListModel implements ListModel<GuideLine> {
-				private Vector<ListDataListener> listDataListeners;
-				private Vector<GuideLine> guideLines;
-	
-				public GuideLineListModel(Vector<GuideLine> guideLines) {
-					this.guideLines = guideLines;
-					listDataListeners = new Vector<>();
+			void updateAfterGuideLinesChange()
+			{
+				updateButtons();
+			}
+
+			private final class GuideLineListModel extends AbstractListModel<GuideLine>
+			{
+				private final GuideLinesStorage storage;
+				
+				GuideLineListModel(GuideLinesStorage storage)
+				{
+					super(
+						storage==null ? null : storage.guideLines::removeElementAt,
+						storage==null ? null : storage.guideLines::insertElementAt,
+						null
+					);
+					this.storage = storage;
 				}
-	
-				@Override public int getSize() { return guideLines==null ? 0 : guideLines.size(); }
-				@Override public GuideLine getElementAt(int index) {
-					if (guideLines==null || index<0 || index>=guideLines.size()) return null;
-					return guideLines.get(index);
-				}
-			
-				@Override public void    addListDataListener(ListDataListener l) { listDataListeners.   add(l); }
-				@Override public void removeListDataListener(ListDataListener l) { listDataListeners.remove(l);}
+
+				@Override protected boolean hasData() { return storage!=null; }
+				@Override public int getSize() { return storage==null ? 0 : storage.guideLines.size(); }
+				@Override public GuideLine  getElementAt(int index) { return isIndexOk(index) ? storage.guideLines.get(index) : null; }
 			}
 		}
 	}
 	
+	private static abstract class AbstractListModel<ItemType> implements ListModel<ItemType> {
+		private final Vector<ListDataListener> listDataListeners;
+		private final BiConsumer<Integer, Integer> swap;
+	
+		AbstractListModel(Consumer<Integer> remove, BiConsumer<ItemType, Integer> insert, BiConsumer<Integer, Integer> swap) {
+			this.swap = swap!=null ? swap : remove==null || insert==null ? null : (index1, index2) -> {
+				ItemType guideLine = getElementAt(index1);
+				remove.accept(index1);
+				insert.accept(guideLine, index2);
+			};
+			listDataListeners = new Vector<>();
+		}
+		
+		protected abstract boolean hasData();
+	
+		void move(int index, int inc, Consumer<Integer> updateSelection)
+		{
+			if (!canMove(index, inc)) return;
+			swap.accept(index, index+inc);
+			fireContentsChanged(this, Math.min(index, index+inc), Math.max(index, index+inc));
+			if (updateSelection!=null)
+				updateSelection.accept(index+inc);
+		}
+		
+		protected boolean isIndexOk(int index) { return 0<=index && index<getSize(); }
+	
+		boolean canMove(int index, int inc)
+		{
+			if (swap==null) return false;
+			if (!hasData()) return false;
+			if (index    <0 || index    >=getSize()) return false;
+			if (index+inc<0 || index+inc>=getSize()) return false;
+			return true;
+		}
+	
+		@Override public void    addListDataListener(ListDataListener l) { listDataListeners.   add(l); }
+		@Override public void removeListDataListener(ListDataListener l) { listDataListeners.remove(l);}
+		
+		void fireContentsChanged(Object source, int startIndex, int endIndex) {
+			ListDataEvent e = new ListDataEvent(source, ListDataEvent.CONTENTS_CHANGED, startIndex, endIndex);
+			for (ListDataListener l : listDataListeners) l.contentsChanged(e);
+		}
+		@SuppressWarnings("unused")
+		void fireIntervalAdded(Object source, int startIndex, int endIndex) {
+			ListDataEvent e = new ListDataEvent(source, ListDataEvent.INTERVAL_ADDED, startIndex, endIndex);
+			for (ListDataListener l : listDataListeners) l.intervalAdded(e);
+		}
+		@SuppressWarnings("unused")
+		void fireIntervalRemoved(Object source, int startIndex, int endIndex) {
+			ListDataEvent e = new ListDataEvent(source, ListDataEvent.INTERVAL_ADDED, startIndex, endIndex);
+			for (ListDataListener l : listDataListeners) l.intervalRemoved(e);
+		}
+	}
+
 	private static class EditorViewContextMenu extends JPopupMenu {
 		
 		private static final long serialVersionUID = 1271594755142232548L;
