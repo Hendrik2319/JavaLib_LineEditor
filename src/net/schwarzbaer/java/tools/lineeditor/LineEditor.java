@@ -133,37 +133,6 @@ public class LineEditor
 
 	private class GeneralOptionPanelContext implements GeneralOptionPanel.Context
 	{
-//		@Override
-//		public boolean canCreateNewGuideLine()
-//		{
-//			return guideLinesStorage!=null;
-//		}
-//		
-//		@Override
-//		public void guideLineChanged() {
-//			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Changed, "GeneralOptionPanel.Context.guideLineChanged"));
-//		}
-//
-//		@Override
-//		public void addGuideLine(GuideLine guideLine) {
-//			if (guideLinesStorage==null) return;
-//			if (guideLine==null) return;
-//			guideLinesStorage.guideLines.add(guideLine);
-//			editorView        .updateAfterGuideLinesChange();
-//			generalOptionPanel.updateAfterGuideLinesChange();
-//			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Added, "GeneralOptionPanel.Context.addGuideLine"));
-//		}
-//
-//		@Override
-//		public void removeGuideLine(int index) {
-//			if (guideLinesStorage==null) return;
-//			if (index<0 || index>=guideLinesStorage.guideLines.size()) return;
-//			guideLinesStorage.guideLines.remove(index);
-//			editorView        .updateAfterGuideLinesChange();
-//			generalOptionPanel.updateAfterGuideLinesChange();
-//			context.guideLinesChanged(new GuideLinesChangedEvent(GuideLinesChangedEvent.Type.Removed, "GeneralOptionPanel.Context.removeGuideLine"));
-//		}
-
 		@Override
 		public boolean canModifyFormsList()
 		{
@@ -386,11 +355,6 @@ public class LineEditor
 			void addForm    (       LineForm<?>  form );
 			void addForms   (Vector<LineForm<?>> forms);
 			void removeForms(List  <LineForm<?>> forms);
-			
-//			boolean canCreateNewGuideLine();
-//			void guideLineChanged();
-//			void addGuideLine(GuideLine guideLine);
-//			void removeGuideLine(int index);
 		}
 
 		private final Context context;
@@ -407,11 +371,6 @@ public class LineEditor
 			addTab("Forms"      ,      formsPanel = new      FormsPanel());
 			addTab("Guide Lines", guideLinesPanel = new GuideLinesPanel(guideLinesListener));
 		}
-		
-//		void updateAfterGuideLinesChange()
-//		{
-//			guideLinesPanel.updateAfterGuideLinesChange();
-//		}
 
 		void setGuideLines(GuideLinesStorage guideLinesStorage) {
 			guideLinesPanel.setGuideLines(guideLinesStorage);
@@ -656,7 +615,7 @@ public class LineEditor
 		
 		interface GuideLinesListener extends ListDataListener
 		{
-			
+			// t.b.d.
 		}
 		
 		private class GuideLinesPanel extends JPanel {
@@ -703,7 +662,6 @@ public class LineEditor
 				buttonPanel.add(btnNew = createButton("New", GrayCommandIcons.IconGroup.Add, true , e->{
 					if (guideLineListModel!=null)
 						guideLineListModel.add(createNewGuideLine(), guideLineList::setSelectedIndex);
-					//context.addGuideLine(createNewGuideLine());
 				}), c);
 				buttonPanel.add(btnEdit = createButton("Edit", false, e->{
 					editSelectedGuideLine();
@@ -714,55 +672,22 @@ public class LineEditor
 						guideLineListModel.remove(selectedIndex);
 						guideLineList.clearSelection();
 					}
-					//context.removeGuideLine(selectedIndex);
 				}), c);
-				buttonPanel.add(btnMoveUp   = createButton(null    , GrayCommandIcons.IconGroup.Up    , false, e->{
+				buttonPanel.add(btnMoveUp   = createButton(null, GrayCommandIcons.IconGroup.Up, false, e->{
 					if (guideLineListModel!=null)
-					{
 						guideLineListModel.move(selectedIndex, -1, guideLineList::setSelectedIndex);
-						//context.guideLineChanged();
-					}
 				}), c);
 				buttonPanel.add(btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down, false, e->{
 					if (guideLineListModel!=null)
-					{
 						guideLineListModel.move(selectedIndex, +1, guideLineList::setSelectedIndex);
-						//context.guideLineChanged();
-					}
 				}), c);
-				
-				JPanel debugPanel = new JPanel(new GridBagLayout());
-				debugPanel.add(createButton("List Content", e->{
-					System.out.printf("guideLineList:%n");
-					System.out.printf("   Model: %s%n", guideLineList.getModel());
-					if (guideLineListModel==null)
-						System.out.printf("guideLineListModel: <null>%n");
-					else
-					{
-						System.out.printf("guideLineListModel:%n");
-						System.out.printf("   this   : %s%n", guideLineListModel);
-						System.out.printf("   storage: %s%n", guideLineListModel.storage);
-						for (int i=0; i<guideLineListModel.getSize(); i++)
-							System.out.printf("   [%2d] %s%n", i, guideLineListModel.getElementAt(i));
-					}
-				}), c);
-				debugPanel.add(createButton("Revalidate", e->{
-					guideLineList.revalidate();
-				}), c);
-				
-				JPanel lowerPanel = new JPanel(new GridLayout(0,1));
-				lowerPanel.add(buttonPanel);
-				lowerPanel.add(debugPanel);
-				
 				
 				add(guideLineListScrollPane,BorderLayout.CENTER);
-				//add(buttonPanel,BorderLayout.SOUTH);
-				add(lowerPanel,BorderLayout.SOUTH);
+				add(buttonPanel,BorderLayout.SOUTH);
 				updateButtons();
 			}
 	
 			private void updateButtons() {
-			//	btnNew     .setEnabled(context.canCreateNewGuideLine());
 				btnNew     .setEnabled(guideLineListModel!=null);
 				btnEdit    .setEnabled(selectedGuideLine!=null);
 				btnRemove  .setEnabled(selectedGuideLine!=null);
@@ -803,16 +728,11 @@ public class LineEditor
 			}
 
 			void setGuideLines(GuideLinesStorage guideLinesStorage) {
-				guideLineList.setModel(guideLineListModel = new GuideLineListModel(guideLinesStorage));
+				guideLineListModel = new GuideLineListModel(guideLinesStorage);
 				guideLineListModel.addListDataListener(guideLinesListener);
+				guideLineList.setModel(guideLineListModel);
 				updateButtons();
 			}
-			
-//			void updateAfterGuideLinesChange()
-//			{
-//				guideLineList.repaint();
-//				updateButtons();
-//			}
 
 			private final class GuideLineListModel extends AbstractListModel<GuideLine>
 			{
