@@ -4,6 +4,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Locale;
@@ -57,6 +58,25 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 	void translate(double x, double y);
 	void rotate90(double centerX, double centerY, boolean mathPosDir);
 	void forEachPoint(BiConsumer<Double,Double> action);
+	void modifyPoints(ModifyAction action);
+	
+	interface ModifyAction {
+		void modify(double x, double y, BiConsumer<Double,Double> setValues);
+	}
+	
+	default void rotate(double centerX, double centerY, double angle)
+	{
+		AffineTransform transform = AffineTransform.getRotateInstance(angle, centerX, centerY);
+		Point2D.Double ptSrc = new Point2D.Double();
+		Point2D.Double ptDst = new Point2D.Double();
+		
+		modifyPoints((double x, double y, BiConsumer<Double, Double> setValues) ->{
+			ptSrc.x = x;
+			ptSrc.y = y;
+			transform.transform(ptSrc, ptDst);
+			setValues.accept(ptDst.x, ptDst.y);
+		});
+	}
 	
 	default Point2D.Double rotate90(double x, double y, double centerX, double centerY, boolean mathPosDir)
 	{
@@ -156,6 +176,12 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 		@Override
 		public void forEachPoint(BiConsumer<Double, Double> action) {
 			points.forEach(p->action.accept(p.x,p.y));
+		}
+		
+		@Override
+		public void modifyPoints(ModifyAction action)
+		{
+			points.forEach(p->action.modify(p.x, p.y, p::set));
 		}
 		
 		@Override
@@ -324,6 +350,13 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 		}
 		
 		@Override
+		public void modifyPoints(ModifyAction action)
+		{
+			action.modify( x1,y1, (x,y) -> { x1=x; y1=y; });
+			action.modify( x2,y2, (x,y) -> { x2=x; y2=y; });
+		}
+		
+		@Override
 		public void translate(double x, double y) {
 			x1+=x; y1+=y;
 			x2+=x; y2+=y;
@@ -433,6 +466,12 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 		}
 		
 		@Override
+		public void modifyPoints(ModifyAction action)
+		{
+			action.modify( xC,yC, (x,y) -> { xC=x; yC=y; });
+		}
+		
+		@Override
 		public void translate(double x, double y) {
 			xC+=x; yC+=y;
 		}
@@ -454,6 +493,14 @@ interface LineForm<HighlightPointType> extends Form, LineFormEditing.EditableFor
 				aEnd   = -aStart_temp;
 				break;
 			}
+		}
+		
+		@Override
+		public void rotate(double centerX, double centerY, double angle)
+		{
+			LineForm.super.rotate(centerX, centerY, angle);
+			aStart += angle;
+			aEnd   += angle;
 		}
 		
 		@Override

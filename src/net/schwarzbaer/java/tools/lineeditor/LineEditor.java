@@ -435,6 +435,7 @@ public class LineEditor
 			private final JButton btnTranslate;
 			private final JButton btnRotateCW;
 			private final JButton btnRotateCCW;
+			private final JButton btnRotate;
 			
 			FormsPanel() {
 				super(new BorderLayout(3,3));
@@ -466,28 +467,29 @@ public class LineEditor
 				buttonPanel1.add( btnNew    = createButton("New"   , GrayCommandIcons.IconGroup.Add   , false, e->context.addForm(createNewForm())                       ), c );
 				buttonPanel1.add( btnEdit   = createButton("Edit"  ,                                    false, e->editorView.setSelectedForm(formList.getSelectedValue())), c );
 				buttonPanel1.add( btnRemove = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeForms(formList.getSelectedValuesList())  ), c );
-				
-				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
-				buttonPanel2.add( btnCopy   = createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())), c );
-				buttonPanel2.add( btnPaste  = createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ), c );
-				buttonPanel2.add( btnMoveUp = createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
+				buttonPanel1.add( btnMoveUp = createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], -1, formList::setSelectedIndex);
 					context.formsChanged(true);
 				}), c );
-				buttonPanel2.add( btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
+				buttonPanel1.add( btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], +1, formList::setSelectedIndex);
 					context.formsChanged(true);
 				}), c );
 				
+				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
+				buttonPanel2.add( btnCopy   = createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())), c );
+				buttonPanel2.add( btnPaste  = createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ), c );
+				buttonPanel2.add( btnMirror    = createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ), c );
+				buttonPanel2.add( btnTranslate = createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ), c );
+				
 				JPanel buttonPanel3 = new JPanel(new GridBagLayout());
-				buttonPanel3.add( btnMirror    = createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ), c );
-				buttonPanel3.add( btnTranslate = createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ), c );
 				buttonPanel3.add( btnRotateCW  = createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, e->rotateForms90(formList.getSelectedValuesList(), true ) ), c );
 				buttonPanel3.add( btnRotateCCW = createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms90(formList.getSelectedValuesList(), false) ), c );
+				buttonPanel3.add( btnRotate    = createButton("...", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms  (formList.getSelectedValuesList()       ) ), c );
 				
 				JPanel buttonGroupsPanel = new JPanel(new GridLayout(0,1));
 				buttonGroupsPanel.add(buttonPanel1);
@@ -497,6 +499,18 @@ public class LineEditor
 				add(formListScrollPane,BorderLayout.CENTER);
 				add(buttonGroupsPanel,BorderLayout.SOUTH);
 			}
+			
+			private void rotateForms(List<LineForm<?>> forms)
+			{
+				Double a = showDoubleInputDialog(this, "Rotation Angle in ° (counterclockwise): ", null);
+				if (a==null) return;
+				Double x = showDoubleInputDialog(this, "Rotation Center X: ", null);
+				if (x==null) return;
+				Double y = showDoubleInputDialog(this, "Rotation Center Y: ", null);
+				if (y==null) return;
+				
+				transformForms(forms, form -> form.rotate(x, y, -a*Math.PI/180));
+			}
 	
 			private void rotateForms90(List<LineForm<?>> forms, boolean mathPosDir)
 			{
@@ -505,13 +519,7 @@ public class LineEditor
 				Double y = showDoubleInputDialog(this, "Rotation Center Y: ", null);
 				if (y==null) return;
 				
-				for (LineForm<?> form:forms)
-					if (form!=null)
-						form.rotate90(x, y, mathPosDir);
-				
-				context.formsChanged(false);
-				editorView.repaint();
-				formList.repaint();
+				transformForms(forms, form -> form.rotate90(x, y, mathPosDir));
 			}
 
 			private void translateForms(List<LineForm<?>> forms) {
@@ -520,24 +528,24 @@ public class LineEditor
 				Double y = showDoubleInputDialog(this, "Set Y translation value: ", null);
 				if (y==null) return;
 				
-				for (LineForm<?> form:forms)
-					if (form!=null)
-						form.translate(x,y);
-				
-				context.formsChanged(false);
-				editorView.repaint();
-				formList.repaint();
+				transformForms(forms, form -> form.translate(x,y));
 			}
 
-			private void mirrorForms(List<LineForm<?>> forms) {
+			private void mirrorForms(List<LineForm<?>> forms)
+			{
 				LineForm.MirrorDirection dir = showMultipleChoiceDialog(this, "Select mirror direction:", "Mirror Direction", LineForm.MirrorDirection.values(), null, LineForm.MirrorDirection.class);
 				if (dir==null) return;
 				Double pos = showDoubleInputDialog(this, String.format("Set position of %s mirror axis: ", dir.axisPos.toLowerCase()), null);
 				if (pos==null) return;
 				
+				transformForms(forms, form -> form.mirror(dir,pos));
+			}
+
+			private void transformForms(List<LineForm<?>> forms, Consumer<LineForm<?>> action)
+			{
 				for (LineForm<?> form:forms)
 					if (form!=null)
-						form.mirror(dir,pos);
+						action.accept(form);
 				
 				context.formsChanged(false);
 				editorView.repaint();
@@ -565,16 +573,17 @@ public class LineEditor
 				btnNew      .setEnabled(context.canModifyFormsList());
 				btnEdit     .setEnabled(selectedIndices.length==1);
 				btnRemove   .setEnabled(selectedIndices.length>0);
-				
-				btnCopy     .setEnabled(selectedIndices.length>0);
-				btnPaste    .setEnabled(!localClipboard.isEmpty());
 				btnMoveUp   .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],-1));
 				btnMoveDown .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],+1));
 				
+				btnCopy     .setEnabled(selectedIndices.length>0);
+				btnPaste    .setEnabled(!localClipboard.isEmpty());
 				btnMirror   .setEnabled(selectedIndices.length>0);
 				btnTranslate.setEnabled(selectedIndices.length>0);
+				
 				btnRotateCW .setEnabled(selectedIndices.length>0);
 				btnRotateCCW.setEnabled(selectedIndices.length>0);
+				btnRotate   .setEnabled(selectedIndices.length>0);
 			}
 
 			private LineForm<?> createNewForm() {
@@ -688,7 +697,7 @@ public class LineEditor
 			}
 	
 			private void updateButtons() {
-				btnNew     .setEnabled(guideLineListModel!=null);
+				btnNew     .setEnabled(guideLineListModel!=null && guideLineListModel.hasData());
 				btnEdit    .setEnabled(selectedGuideLine!=null);
 				btnRemove  .setEnabled(selectedGuideLine!=null);
 				btnMoveUp  .setEnabled(guideLineListModel!=null && guideLineListModel.canMove(selectedIndex,-1));
