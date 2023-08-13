@@ -7,6 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -224,14 +225,21 @@ public class LineEditor
 	}
 
 	static JButton createButton(String title, ActionListener al) {
-		return createButton(title, null, true, al);
+		return createButton(title, null, true, false, al);
 	}
 	static JButton createButton(String title, boolean enabled, ActionListener al) {
-		return createButton(title, null, enabled, al);
+		return createButton(title, null, enabled, false, al);
+	}
+	static JButton createButton(String title, boolean enabled, boolean smallMargins, ActionListener al) {
+		return createButton(title, null, enabled, smallMargins, al);
 	}
 	static JButton createButton(String title, GeneralIcons.IconGroup icons, boolean enabled, ActionListener al) {
+		return createButton(title, icons, enabled, false, al);
+	}
+	static JButton createButton(String title, GeneralIcons.IconGroup icons, boolean enabled, boolean smallMargins, ActionListener al) {
 		JButton comp = new JButton(title);
 		comp.setEnabled(enabled);
+		if (smallMargins) comp.setMargin(new Insets(0,3,0,3));
 		if (al!=null) comp.addActionListener(al);
 		if (icons!=null) { comp.setIcon(icons.getEnabledIcon()); comp.setDisabledIcon(icons.getDisabledIcon()); }
 		return comp;
@@ -424,7 +432,9 @@ public class LineEditor
 			private final JList<LineForm<?>> formList;
 			private final Vector<LineForm<?>> localClipboard;
 			private FormListModel formListModel;
-			private final JButton btnNew;
+			private final JButton btnAdd1;
+			private final JButton btnAdd2;
+			private final JButton btnAdd3;
 			private final JButton btnEdit;
 			private final JButton btnRemove;
 			private final JButton btnCopy;
@@ -464,32 +474,34 @@ public class LineEditor
 				c.fill = GridBagConstraints.BOTH;
 				
 				JPanel buttonPanel1 = new JPanel(new GridBagLayout());
-				buttonPanel1.add( btnNew    = createButton("New"   , GrayCommandIcons.IconGroup.Add   , false, e->context.addForm(createNewForm())                       ), c );
-				buttonPanel1.add( btnEdit   = createButton("Edit"  ,                                    false, e->editorView.setSelectedForm(formList.getSelectedValue())), c );
-				buttonPanel1.add( btnRemove = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e->context.removeForms(formList.getSelectedValuesList())  ), c );
-				buttonPanel1.add( btnMoveUp = createButton(null   , GrayCommandIcons.IconGroup.Up   , false, e->{
+				buttonPanel1.add( btnAdd1   = createButton("PolyLine", GrayCommandIcons.IconGroup.Add   , false, true, e->context.addForm(createNewForm(FormType.PolyLine))      ), c );
+				buttonPanel1.add( btnAdd2   = createButton("Line"    , GrayCommandIcons.IconGroup.Add   , false, true, e->context.addForm(createNewForm(FormType.Line))          ), c );
+				buttonPanel1.add( btnAdd3   = createButton("Arc"     , GrayCommandIcons.IconGroup.Add   , false, true, e->context.addForm(createNewForm(FormType.Arc))           ), c );
+				buttonPanel1.add( btnEdit   = createButton("Edit"    ,                                    false, true, e->editorView.setSelectedForm(formList.getSelectedValue())), c );
+				buttonPanel1.add( btnRemove = createButton("Remove"  , GrayCommandIcons.IconGroup.Delete, false, true, e->context.removeForms(formList.getSelectedValuesList())  ), c );
+				
+				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
+				buttonPanel2.add( btnCopy   = createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, true, e->copyForms(formList.getSelectedValuesList())), c );
+				buttonPanel2.add( btnPaste  = createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, true, e->pasteForms()                               ), c );
+				buttonPanel2.add( btnMoveUp = createButton(null      , GrayCommandIcons.IconGroup.Up    , false, true, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], -1, formList::setSelectedIndex);
 					context.formsChanged(true);
 				}), c );
-				buttonPanel1.add( btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down , false, e->{
+				buttonPanel2.add( btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down , false, true, e->{
 					int[] selectedIndices = formList.getSelectedIndices();
 					if (formListModel==null || selectedIndices.length!=1) return;
 					formListModel.move(selectedIndices[0], +1, formList::setSelectedIndex);
 					context.formsChanged(true);
 				}), c );
 				
-				JPanel buttonPanel2 = new JPanel(new GridBagLayout());
-				buttonPanel2.add( btnCopy   = createButton("Copy" , GrayCommandIcons.IconGroup.Copy , false, e->copyForms(formList.getSelectedValuesList())), c );
-				buttonPanel2.add( btnPaste  = createButton("Paste", GrayCommandIcons.IconGroup.Paste, false, e->pasteForms()                               ), c );
-				buttonPanel2.add( btnMirror    = createButton("Mirror"    , false, e->mirrorForms   (formList.getSelectedValuesList()) ), c );
-				buttonPanel2.add( btnTranslate = createButton("Translate" , false, e->translateForms(formList.getSelectedValuesList()) ), c );
-				
 				JPanel buttonPanel3 = new JPanel(new GridBagLayout());
-				buttonPanel3.add( btnRotateCW  = createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, e->rotateForms90(formList.getSelectedValuesList(), true ) ), c );
-				buttonPanel3.add( btnRotateCCW = createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms90(formList.getSelectedValuesList(), false) ), c );
-				buttonPanel3.add( btnRotate    = createButton("...", GrayCommandIcons.IconGroup.ReloadCCW, false, e->rotateForms  (formList.getSelectedValuesList()       ) ), c );
+				buttonPanel3.add( btnMirror    = createButton("Mirror"    , false, true, e->mirrorForms   (formList.getSelectedValuesList()) ), c );
+				buttonPanel3.add( btnTranslate = createButton("Translate" , false, true, e->translateForms(formList.getSelectedValuesList()) ), c );
+				buttonPanel3.add( btnRotateCW  = createButton("90°", GrayCommandIcons.IconGroup.Reload   , false, true, e->rotateForms90(formList.getSelectedValuesList(), true ) ), c );
+				buttonPanel3.add( btnRotateCCW = createButton("90°", GrayCommandIcons.IconGroup.ReloadCCW, false, true, e->rotateForms90(formList.getSelectedValuesList(), false) ), c );
+				buttonPanel3.add( btnRotate    = createButton("...", GrayCommandIcons.IconGroup.ReloadCCW, false, true, e->rotateForms  (formList.getSelectedValuesList()       ) ), c );
 				
 				JPanel buttonGroupsPanel = new JPanel(new GridLayout(0,1));
 				buttonGroupsPanel.add(buttonPanel1);
@@ -570,14 +582,16 @@ public class LineEditor
 
 			private void updateButtons() {
 				int[] selectedIndices = formList.getSelectedIndices();
-				btnNew      .setEnabled(context.canModifyFormsList());
+				btnAdd1     .setEnabled(context.canModifyFormsList());
+				btnAdd2     .setEnabled(context.canModifyFormsList());
+				btnAdd3     .setEnabled(context.canModifyFormsList());
 				btnEdit     .setEnabled(selectedIndices.length==1);
 				btnRemove   .setEnabled(selectedIndices.length>0);
 				btnMoveUp   .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],-1));
 				btnMoveDown .setEnabled(selectedIndices.length==1 && formListModel!=null && formListModel.canMove(selectedIndices[0],+1));
 				
 				btnCopy     .setEnabled(selectedIndices.length>0);
-				btnPaste    .setEnabled(!localClipboard.isEmpty());
+				btnPaste    .setEnabled(!localClipboard.isEmpty() && context.canModifyFormsList());
 				btnMirror   .setEnabled(selectedIndices.length>0);
 				btnTranslate.setEnabled(selectedIndices.length>0);
 				
@@ -586,8 +600,8 @@ public class LineEditor
 				btnRotate   .setEnabled(selectedIndices.length>0);
 			}
 
-			private LineForm<?> createNewForm() {
-				FormType formType = showMultipleChoiceDialog(this, "Select type of new form:", "Form Type", LineForm.FormType.values(), null, LineForm.FormType.class);
+			private LineForm<?> createNewForm(FormType formType) {
+				if (formType==null) formType = showMultipleChoiceDialog(this, "Select type of new form:", "Form Type", LineForm.FormType.values(), null, LineForm.FormType.class);
 				if (formType==null) return null;
 				return LineForm.createNew(formType, editorView.getViewRectangle());
 			}
@@ -668,25 +682,25 @@ public class LineEditor
 				JPanel buttonPanel = new JPanel(new GridBagLayout());
 				GridBagConstraints c = new GridBagConstraints();
 				c.fill = GridBagConstraints.BOTH;
-				buttonPanel.add(btnNew = createButton("New", GrayCommandIcons.IconGroup.Add, true , e->{
+				buttonPanel.add(btnNew = createButton("New", GrayCommandIcons.IconGroup.Add, true , true, e->{
 					if (guideLineListModel!=null)
 						guideLineListModel.add(createNewGuideLine(), guideLineList::setSelectedIndex);
 				}), c);
-				buttonPanel.add(btnEdit = createButton("Edit", false, e->{
+				buttonPanel.add(btnEdit = createButton("Edit", false, true, e->{
 					editSelectedGuideLine();
 				}), c);
-				buttonPanel.add(btnRemove = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, e-> {
+				buttonPanel.add(btnRemove = createButton("Remove", GrayCommandIcons.IconGroup.Delete, false, true, e-> {
 					if (guideLineListModel!=null)
 					{
 						guideLineListModel.remove(selectedIndex);
 						guideLineList.clearSelection();
 					}
 				}), c);
-				buttonPanel.add(btnMoveUp   = createButton(null, GrayCommandIcons.IconGroup.Up, false, e->{
+				buttonPanel.add(btnMoveUp   = createButton(null, GrayCommandIcons.IconGroup.Up, false, true, e->{
 					if (guideLineListModel!=null)
 						guideLineListModel.move(selectedIndex, -1, guideLineList::setSelectedIndex);
 				}), c);
-				buttonPanel.add(btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down, false, e->{
+				buttonPanel.add(btnMoveDown = createButton(null, GrayCommandIcons.IconGroup.Down, false, true, e->{
 					if (guideLineListModel!=null)
 						guideLineListModel.move(selectedIndex, +1, guideLineList::setSelectedIndex);
 				}), c);
@@ -759,7 +773,7 @@ public class LineEditor
 
 				void add(GuideLine newGuideLine, Consumer<Integer> updateSelection)
 				{
-					if (storage!=null)
+					if (storage!=null && newGuideLine!=null)
 					{
 						storage.guideLines.add(newGuideLine);
 						int index = storage.guideLines.size()-1;
